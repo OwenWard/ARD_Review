@@ -1,0 +1,63 @@
+\section{Latent kernel model and computation}
+\label{sec:kernel_model}
+
+In this section we describe model fitting for our latent kernel model for ARD. We first describe formally our model and prior structure and conclude by presenting our model fitting algorithm.
+
+% Latent Mixing Kernel Model
+\subsection{Likelihood, priors and posterior}
+\label{subsec:kernel_prior}
+
+The likelihood of modeling the survey responses to the number of people known in $\scriptG_k$ is unchanged from the \citet{Zheng+others:2006} negative binomial model described in Equation \ref{eq:overdispersion}. 
+
+Our first prior is for the negative binomial overdispersion $\omega_k$. In particular, we place a prior on the inverse overdispersion $\omega_k' = 1(1/\omega_k - 1)$ so that
+\begin{align}
+\omega_k' &\sim \text{Beta}(\alpha = 4.5, \beta = 0.5),
+\end{align}
+where $\alpha$ and $\beta$ are chosen so that the priors $p(\omega_k')$ match the empirical distribution of inverse overdispersion estimates from \citet{McCormick+others:2010}.
+
+With respect to the negative binomial expectation $\mu_{ik}$ defined in Equation \ref{eq:nonrandom_mixing_kernel_with_spline}, we place a structured prior on the survey respondents' degree estimates that allows us to place a latent dependence of gender and age on ego degree. This is achieved by first defining the expected degree $\delta_i$ as
+\begin{align}
+\delta_i = \beta_1 + \beta_2 \ind\{g_i = \text{Female}\} - e^{\beta_3} \biggl( \frac{a_i - \bar{a}}{\bar{a}} \biggr)^2,
+\end{align}
+where $\beta_1, \beta_2$, and $\beta_3$ are latent coefficients and $\bar{a}$ is the average age of the population, estimated from the population age distribution. The priors on the actual degrees $d_i$ are then
+\begin{align}
+\log d_i &\sim \normal(\delta_i, \eta) && \\\nonumber
+\log \eta &\sim \normal(-0.7, 0.1) && \\\nonumber
+\beta_1 &\sim \normal(6, 1) && \\\nonumber
+\beta_2 &\sim \normal(0, 1) && \\\nonumber
+\beta_3 &\sim \normal(-3, 1),
+\end{align} 
+where the priors on $\eta, \beta_1, \beta_2,$ and $\beta_3$ are chosen so that the priors $p(\delta_i)$ match the empirical distribution of degree estimates from \citet{McCormick+others:2010}.
+
+We also place a neutral prior on the gender mixing matrix's rows
+\begin{align}
+\rho_{1\cdot} &\sim \text{Dirichlet}(1,1) &&\\\nonumber
+\rho_{2\cdot} &\sim \text{Dirichlet}(1,1).
+\end{align}
+
+Finally, we place the following priors on the spline coefficients from Equation \ref{eq:kernel_spline} for regularization
+\begin{align}
+\alpha_0^{g_ig_j} &\sim \normal(0,2) &&\\\nonumber 
+\alpha_n^{g_ig_j} &\sim \normal(0,\tau) &&\\\nonumber
+\tau &\sim \normal^+(0, 2).
+\end{align}
+
+Letting $\theta$ denote the set of all unknown parameters and letting $y$ denote the survey responses, the posterior is then
+\begin{align}
+\theta | y &\sim 
+\prod_{k=1}^K  \text{Beta}(\omega_k' | 4.5, 0.5) \prod_{i=1}^N \text{NegBinomial}(y_{ik} | \mu_{ik}, \omega_k') && \\\nonumber
+&\times \normal(\log \eta | -0.7, 0.1) \prod_{i=1}^N \normal(\log d_i | \delta_i, \eta) &&\\\nonumber
+&\times \normal(\beta_3 | -3, 1) \normal(\beta_2 | 0, 1) \normal(\beta_1 | 6, 1) \normal^+(\tau | 0, 2) &&\\\nonumber
+&\times \prod_{g_i = 1}^2 \text{Dirichlet}(\rho_{g_i\cdot}|1,1) \prod_{g_j = 1}^2 \normal(\alpha_0^{g_ig_j} | 0, 2) \prod_{n=1}^{13} \normal(\alpha_n^{g_ig_j} | 0, \tau),
+\end{align}
+which is not easy to sample from directly. Hence, we use Markov-chain Monte Carlo (MCMC) to sample from the posterior.
+
+% HMC Algorithm
+\subsection{MCMC algorithm}
+\label{subsec:kernel_fitting}
+
+As previously mentioned, the ties between the survey respondents and alters from the subpopulation are never directly observed. Instead, we make inferences about the expected number of people known in $\scriptG_k$ using the expression obtained from the integration in Equation \ref{eq:nonrandom_mixing_kernel_derivation}. The closed form solution of this integration eases our MCMC computation significantly by removing the need for numerical integration. 
+
+Since our likeilhood and priors can be expressed with standard probabilistic programming terminology, we use the No U-Turn HMC sampler of the Stan probabilistic programming language \citep{Stan:2016} to converge to and obtain samples from the posterior.
+
+We now turn attention to implementing this algorithm on the survey we designed.

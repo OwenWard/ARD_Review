@@ -1,0 +1,93 @@
+\section{Previous research}
+\label{sec:ode_background}
+
+We first outline the standard supernova modeling framework. Let $\mathcal{C}$ denote the cosmological parameters of interest,
+\begin{equation}
+\mathcal{C} = \{H_0, \Omegam, \OmegaL, \Omegak, w\}.
+\end{equation} 
+Here $H_0$ is a constant known as the value of the Hubble parameter today, equal to 67.8 as of May 2017. The remaining four parameters may or may not be constants as well, depending on whether the universe is assumed to be flat or curved. Under the flat universe assumption we have that
+\begin{align}
+\OmegaL &= 1 - \Omegam && \label{eq:flat_univ_assumption} \\\nonumber
+\Omegak &= 0 && \\\nonumber
+w &\neq -1,
+\end{align} 
+so that $\Omegam$ and $w$ are the only unknown cosmological parameters. Alternatively, under a curved universe assumption we have that 
+\begin{align}
+\Omegak &= 1 - \Omegam - \OmegaL && \label{eq:curv_univ_assumption} \\\nonumber
+w &= -1,
+\end{align}
+so that $\Omegam$ and $\OmegaL$ are the only unknown cosmological parameters. 
+
+Then, if we let $z = \{ \zhel, \zcmb\}$ denote the heliocentric and cosmic-microwave background adjusted redshifts, respectively, the distance modulus, $\mu(z, \scriptC)$, is
+\begin{align}
+\mu(z, \scriptC) &= 25 + 5 \log_{10} d_L(z, \scriptC), \label{eq:dist_mod}
+\end{align}
+where the luminosity distance to redshift $d_L(z, \scriptC)$ is
+\begin{align}
+d_L(z, \scriptC) &= \frac{c(1 + \zhel)}{H_0} \sinn_{\Omegak}( l(z, \scriptC) ), \label{eq:lum_dist}
+\end{align}
+and the integrated luminosity is $l(z, \scriptC)$ is
+\begin{align}
+l(z, \scriptC) = \int_0^{\zcmb} \biggl( \Omegam(1 + t)^3 + \OmegaL (1 + t)^{3 + 3w} + \Omegak (1 + t)^2 \biggr)^{-\frac{1}{2}} dt. \label{eq:integrated_lum}
+\end{align}
+Here $c$ is the speed of light and $\text{sinn}_{\Omegak}(x)$ is defined as
+\begin{align}
+\sinn_{\Omegak}(x) &= 
+\begin{cases}
+x & \text{if } \Omegak = 0 \\
+\frac{\sinh(\sqrt{\Omegak}x)}{\sqrt{\Omegak}} & \text{if } \Omegak > 0 \\
+\frac{\sin(\sqrt{\Omegak}x)}{\sqrt{\Omegak}} & \text{if } \Omegak < 0 
+\end{cases} \label{eq:sinn}
+\end{align}
+
+The integrated luminosity expression in (\ref{eq:integrated_lum}) can be further simplified for each of the two universe assumptions. In the flat universe, the luminosity becomes
+\begin{align}
+l(z, \scriptC) = \int_0^{\zcmb} \biggl( \Omegam(1 + t)^3 + (1 - \Omegam) (1 + t)^{3 + 3w} \biggr)^{-\frac{1}{2}} dt. \label{eq:integrated_lum_flat}
+\end{align}
+whereas in the curved universe, the luminosity becomes
+\begin{align}
+l(z, \scriptC) = \int_0^{\zcmb} \biggl( \Omegam(1 + t)^3 + \OmegaL + (1- \Omegam - \OmegaL) (1 + t)^2 \biggr)^{-\frac{1}{2}} dt. \label{eq:integrated_lum_curv}
+\end{align}
+
+% BAHAMAS
+\subsection{The \citet{Shariff+others:2016} BAHAMAS model}
+\label{subsec:ode_background_bahamas}
+
+With the distance modulus defined, we now introduce the explicit hierarchical model. Firstly, for each supernova $i$ let $M_i$ denote its intrinsic magnitude and let $\scriptD_i = \{ m_{Bi}, x_{1i}, c_{li} \}$ denote the supernova's true peak B-band magnitude, stretch correction, and color correction, respectively. Then, $\hat{\scriptD}_i = \{ \hat{m}_{Bi}, \hat{x}_{1i}, \hat{c}_{li} \}$ is the supernova's observed peak magnitude, stretch correction, and color correction, respectively. Lastly, let $C_i$ denote the covariance matrix of $\hat{\scriptD}_i$. Then, the BAHAMAS "baseline" likelihood is
+\begin{align}
+m_{Bi} &= \mu(z_i, \scriptC) + M_i - \alpha x_{1i} + \beta c_{li} && \label{eq:baseline_likelihood} \\\nonumber
+\hat{\scriptD}_i &\sim \normal(\scriptD_i, C_i),
+\end{align}
+with the hierarchical priors
+\begin{align}
+M_i &\sim \normal(M_0, \sigma_{res}) && \label{eq:baseline_hierprior} \\\nonumber
+x_{1i} &\sim \normal(x_{10}, R_{x1}) && \\\nonumber
+c_{li} &\sim \normal(c_{l0}, R_{cl}).
+\end{align}
+
+While a generative model could be fit to estimate $\zhel$ and $\zcmb$, \citet{Shariff+others:2016} found that the posterior distributions of the cosmological parameters and regression coefficients are unaffected if one just treats the observed redshift as the true values
+\begin{align}
+\zhel &= \hat{\zhel} && \\\nonumber
+\zcmb &= \hat{\zcmb}.
+\end{align}
+Additionally, \citet{Shariff+others:2016} treat the observed covariance matrix of $\scriptD_i$ as the true value (i.e. $C_i = \hat{C}_i$), rather than modeling a latent covariance matrix. Finally, \citet{Shariff+others:2016} use the following priors for the cosmological parameters and regression coefficients
+\begin{align}
+\Omegam &\sim \uniform(0, 2) && \label{eq:baseline_prior} \\\nonumber 
+\OmegaL &\sim \uniform(0, 2) && \\\nonumber
+H_0 &\sim \normal(67.8, 0) && \\\nonumber
+w &\sim \uniform(-2, 0) && \\\nonumber
+\alpha &\sim \uniform(0, 1) && \\\nonumber 
+\beta &\sim \uniform(0,4),
+\end{align}
+and use the following priors for the hyperparameters
+\begin{align}
+M_0 &\sim \normal(-19.3, 2) && \label{eq:baseline_hyperprior} \\\nonumber 
+\sigma_{res}^2 &\sim \invgamma(0.003, 0.003) && \\\nonumber
+x_{10} &\sim \normal(0, 10) && \\\nonumber 
+\logten R_{x1} &\sim \uniform(-5, 2) && \\\nonumber
+c_{l0} &\sim \normal(0, 1) && \\\nonumber 
+\logten R_{cl} &\sim \uniform(-5,2).
+\end{align}
+
+In addition to the above "baseline" model, \citet{Shariff+others:2016} also try adding additional covariates to (\ref{eq:baseline_likelihood}) such as interaction terms between $x_{1}$ and $c_{l}$, interactions between $\zcmb$ and $c_{l}$, and supernova host galaxy mass $M_{g}$; but for this paper we restrict our attention to the baseline model. In particular we address some issues that this model presents and also expand it with our own covariates. 
+

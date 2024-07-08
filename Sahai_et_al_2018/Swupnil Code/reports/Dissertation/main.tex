@@ -1,0 +1,106 @@
+% --------- Dissertation --------- 
+
+\documentclass[12pt,openright,oneside,letterpaper,onecolumn]{report} 
+\include{header}
+
+\begin{document}
+
+% --------- Title and Abstract --------- 
+
+\pagestyle{empty}
+\thesistitlepage
+\thesiscopyrightpage
+\thesisabstract
+
+% --------- Table of Contents --------- 
+
+\pagenumbering{roman}
+\pagestyle{plain}
+\setlength{\footskip}{0.5in}
+\setcounter{tocdepth}{2}
+\renewcommand{\contentsname}{Table of Contents}
+
+\tableofcontents
+\clearpage
+
+% --------- List of Figures --------- 
+
+\listoffigures
+\clearpage
+
+% --------- Acknowledgements --------- 
+
+\include{chapter_pre/ack}
+\cleardoublepage
+
+% --------- Dedication --------- 
+
+\thispagestyle{plain}
+ \strut \vfill
+\centerline{\LARGE
+To my parents, Harshil, and Dora. }
+\vfill \strut
+ \cleardoublepage
+ 
+% ---------------------------- 
+% --------- BODY --------- 
+% ---------------------------- 
+
+\pagestyle{headings}
+\pagenumbering{arabic}
+\setlength{\textheight}{8.5in}
+\setlength{\footskip}{0in}
+
+\fancypagestyle{plain} {
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[RE,LO]{\itshape \leftmark}
+\renewcommand{\headrulewidth}{0pt}
+}
+\pagestyle{plain}
+
+% --------- Intro Chapter --------- 
+
+\chapter{Introduction}
+\input{chapter_intro/sec_intro}
+
+% --------- EP Chapter --------- 
+\chapter{Distributed expectation propagation for partitioned data}
+\label{chap:ep}
+\input{chapter_ep/sec_intro}
+\input{chapter_ep/sec_ep}
+\input{chapter_ep/sec_application}
+\input{chapter_ep/sec_results}
+\input{chapter_ep/sec_discussion}
+
+% --------- ODE Chapter --------- 
+\chapter{Ordinary differential equation integration for dark energy estimation}
+\label{chap:ode}
+\input{chapter_ode/sec_intro}
+\input{chapter_ode/sec_background}
+\input{chapter_ode/sec_model}
+\input{chapter_ode/sec_results}
+\input{chapter_ode/sec_discussion}
+
+% --------- Kernel Chapter --------- 
+\chapter{Latent mixing kernel for aggregate relational data}
+\label{chap:kernel}
+\input{chapter_kernel/sec_intro}
+\input{chapter_kernel/sec_background}
+\input{chapter_kernel/sec_derivation}
+\input{chapter_kernel/sec_model}
+\input{chapter_kernel/sec_results}
+\input{chapter_kernel/sec_discussion}
+
+% --------- Bibliography --------- 
+\bibliography{bibliography}
+\bibliographystyle{plainnat}
+
+% ---------- Appendices -----------
+
+\begin{appendices}
+\input{appendix/appendix_ep}
+\input{appendix/appendix_ode}
+\end{appendices}
+
+\end{document}
