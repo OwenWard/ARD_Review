@@ -1,4 +1,8 @@
-# Stats for ARD
+# Review Paper on Bayesian Modeling for ARD
+
+
+
+## Stats for ARD
 Statistical research on aggregated relational data. 
 
 1. [Zheng, T., Salganik, M. J., & Gelman, A. (2006)](Zheng_et_al_2006/). How many people do you know in prison? Using overdispersion in count data to estimate social structure in networks. Journal of the American Statistical Association, 101(474), 409-423. 
@@ -20,3 +24,4 @@ Statistical research on aggregated relational data.
 ## Related Research
 
 [Network scale-up](http://nersp.nerdc.ufl.edu/~ufruss/scale-up.htm)
+
