@@ -1,0 +1,52 @@
+This is BibTeX, Version 0.99d (TeX Live 2016)
+Capacity: max_strings=35307, hash_size=35307, hash_prime=30011
+The top-level auxiliary file: main.aux
+A level-1 auxiliary file: chapter_pre/ack.aux
+The style file: plainnat.bst
+Database file #1: bibliography.bib
+Warning--can't use both volume and number fields in Ahnert+others:2011
+Warning--empty journal in Gelman+others:2017
+Warning--empty school in Minka:2001a
+Warning--empty journal in Neal:1993
+You've used 36 entries,
+            2773 wiz_defined-function locations,
+            855 strings with 13331 characters,
+and the built_in function-call counts, 20274 in all, are:
+= -- 1684
+> -- 1629
+< -- 20
++ -- 551
+- -- 514
+* -- 1847
+:= -- 3240
+add.period$ -- 110
+call.type$ -- 36
+change.case$ -- 266
+chr.to.int$ -- 35
+cite$ -- 76
+duplicate$ -- 768
+empty$ -- 1362
+format.name$ -- 561
+if$ -- 4105
+int.to.chr$ -- 2
+int.to.str$ -- 1
+missing$ -- 35
+newline$ -- 188
+num.names$ -- 148
+pop$ -- 504
+preamble$ -- 1
+purify$ -- 233
+quote$ -- 0
+skip$ -- 652
+stack$ -- 0
+substring$ -- 602
+swap$ -- 74
+text.length$ -- 6
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 391
+warning$ -- 4
+while$ -- 158
+width$ -- 0
+write$ -- 471
+(There were 4 warnings)

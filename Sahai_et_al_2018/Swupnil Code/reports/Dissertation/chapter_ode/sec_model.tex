@@ -1,0 +1,77 @@
+\section{An improved statistical method for expansion rate estimation}
+\label{sec:ode_model}
+
+The \citet{Shariff+others:2016} BAHAMAS model, while exhaustive and guided closely by astronomy domain knowledge, presents several statistical and computational issues. Firstly, improvements can be made to the priors to make them more statistically robust and intuitive. Next, additional covariates beyond those proposed in the original paper can help reduce variability in intrinsic magnitude estimates. Lastly, numerous computational improvements can be made by to the MCMC implementation as well as the numerical integration of the luminosity. We now discuss these issues and our proposed improvements.
+
+% Improved priors
+\subsection{Improved priors}
+\label{sec:ode_new_priors}
+
+The first issue we address in the BAHAMAS model is the priors. Inverse gamma priors are used for the scale parameters in (\ref{eq:baseline_hyperprior}), which have been shown to pull parameters much closer to zero than desired, particularly for hierarchical variances \citep{Gelman:2006}. Additionally, the uniform priors prevalent in (\ref{eq:baseline_prior}) too tightly restrict the ranges of the cosmological parameters and regression coefficients, as the uniform priors' limits aren't guided by physical constraints. Lastly, natural logarithms are preferred to the base ten logarithms in (\ref{eq:baseline_hyperprior}) when transforming the scale parameters.
+
+To improve these model choices, we replace all uniform priors by normal priors (or half normal priors in the cases where the range of a cosmological parameter is physically restricted to be positive or negative), which results in the following changes:
+\begin{align}
+\Omegam &\sim \uniform(0, 2) && \Rightarrow && \Omegam \sim \normal^{+}(0, 1) && \label{eq:baseline_prior_new} \\\nonumber 
+\OmegaL &\sim \uniform(0, 2) && \Rightarrow && \OmegaL \sim \normal^{+}(1, 1) && \\\nonumber
+w &\sim \uniform(-2, 0) && \Rightarrow && w \sim \normal^{-}(-1, 1) && \\\nonumber
+\alpha &\sim \uniform(0, 1) && \Rightarrow && \alpha \sim \normal(0.5, 0.5) && \\\nonumber 
+\beta &\sim \uniform(0, 4) && \Rightarrow && \beta \sim \normal(2, 2)
+\end{align}
+Additionally, inverse gamma priors for the scale parameters are replaced by half normal priors, while logarithms with base ten are replaced with natural logarithms, resulting in the following changes:
+\begin{align}
+\sigma_{res}^2 &\sim \invgamma(0.003, 0.003) && \Rightarrow && \sigma_{res} \sim \normal^{+}(0, 1) && \label{eq:baseline_hyperprior_new} \\\nonumber
+x_{10} &\sim \normal(0, 10) && \Rightarrow && x_{10} \sim \normal(0, 1) && \\\nonumber 
+\logten R_{x1} &\sim \uniform(-5, 2) && \Rightarrow && \log R_{x1} \sim \normal(-1.5, 2.5) && \\\nonumber
+\logten R_{cl} &\sim \uniform(-5,2) && \Rightarrow && \log R_{cl} \sim \normal(-1.5, 2.5)
+\end{align}
+Despite changing these priors, we set the centers and scales of the normal distributions to represent the information that is incorporated in the original \citet{Shariff+others:2016} priors. Thus, while our new priors have less rigid supports, they still place mass over roughly the same regions that the BAHAMAS priors do.
+
+% Additional Covariates 
+\subsection{Additional covariates}
+\label{sec:ode_new_cov}
+
+We also explore some additional covariates that could reduce the variability in estimating the intrinsic magnitude. Namely, the Campbell Institute observed additional covariates on a subset of 113 supernovae from the joint light curve analysis. Of these newer variables, we believe that star metallicity $(\hat{m}_t)$, star formation rate $(\hat{f}_r)$, and galaxy age $(\hat{a}_g)$ are the most correlated with intrinsic magnitude. 
+
+As such we try the following extensions of the baseline model in (\ref{eq:baseline_likelihood}). Firstly, we try including metallicity with
+\begin{align}
+m_{Bi} &= \mu(z_i, \scriptC) + M_i - \alpha x_{1i} + \beta c_{li} + \gamma_{m} m_{ti} && \label{eq:metallicity_likelihood} \\\nonumber
+\gamma_{m} &\sim \normal(0, 1).
+\end{align}
+Then we try including star formation rate with
+\begin{align}
+m_{Bi} &= \mu(z_i, \scriptC) + M_i - \alpha x_{1i} + \beta c_{li} + \gamma_{f} f_{ri} && \label{eq:formation_likelihood} \\\nonumber
+\gamma_{f} &\sim \normal(0, 1),
+\end{align}
+and age with
+\begin{align}
+m_{Bi} &= \mu(z_i, \scriptC) + M_i - \alpha x_{1i} + \beta c_{li} + \gamma_{a} a_{gi} && \label{eq:age_likelihood} \\\nonumber
+\gamma_{a} &\sim \normal(0, 1).
+\end{align}
+
+Unlike our data recordings for stretch ($x_1$) and color ($c_l$) corrections, we do not have noise estimates recorded for metallicity, formation rate, and age. As such, we treat the observed values of these covariates as the true values
+\begin{align}
+m_t &= \hat{m}_t && \\\nonumber
+f_r &= \hat{f}_r && \\\nonumber
+a_g &= \hat{a}_g
+\end{align}
+
+Additionally, if we were to fit the models in (\ref{eq:metallicity_likelihood}), (\ref{eq:formation_likelihood}), and (\ref{eq:age_likelihood}) using just the subset of 113 supernovae for which these covariates have been recorded, the cosmological parameter estimates would be very noisy. As such, we fit these 113 supernovae together with the 627 supernovae that do not have the new covariates observed. For each of the metallicity, formation rate, and age model extensions we assign one of the above three likelihoods for the 113 supernovae; while we assign the baseline likelihood in (\ref{eq:baseline_likelihood}) to the remaining 627 supernovae. In this implementation, we allow both sets of data to have different values of the regression coefficients $\alpha$ and $\beta$. However, we ensure that the cosmological parameters $\scriptC$ are the same for both sets of data.
+
+% Computational improvements
+\subsection{Computational improvements}
+\label{sec:ode_integration}
+
+The last improvement we make is in the computation time of the fitting the model itself. While BAHAMAS takes a few days to run, our implementation takes only hours. This is achieved by using the Stan programming language \citep{Stan:2016}, which provides us with three key advantages. 
+
+Firstly, Stan uses the \citet{Hoffman+others:2014} No-U-Turn sampler (NUTS), an extension of Hamiltonian Monte Carlo (HMC), that is much faster than the Gibbs-type sampler used by \citet{Shariff+others:2016}. Gibbs and Metropolis sampling both require a long time to converge to the target distribution for complicated models with many parameters, in large part due to the tendency of these methods to explore parameter space via inefficient random walks \citep{Neal:1993}. HMC, however, is able to suppress such random walk behavior by transforming the problem of sampling from a target distribution into the problem of simulating Hamiltonian dynamics \citep{Neal:2011}. HMC typically requires practitioners to specify the step size $\epsilon$ and the number of steps $L$. NUTS, however, takes an exponentially increasing number of steps forward and backward in time until the direction of the simulation turns around, then uses slice sampling \citep{Neal:2003} to select a point on the simulated trajectory. By vectorizing the parameters and running NUTS in C++, Stan is able to provide huge computational advantages over the Gibbs sampler implemented by \citet{Shariff+others:2016} in Python.
+
+Secondly, Stan's differential equation integrator can be easily included into the executable that is compiled prior to running HMC. By using a fourth and fifth order Runge-Kutta method \citep{Dormand+others:1980} for integration at compile time, Stan is able to integrate directly in compiled C++ \citep{Ahnert+others:2011}, which is much faster than the higher-level Python implementation of BAHAMAS. At the same time, however, the code for writing the integration solver in the Stan language is simpler than doing so in Python. The only adjustment required for a more efficient implementation is to simplify the limits of the integral with a change of variables. This is achieved by replacing $t$ in (\ref{eq:integrated_lum_flat}) and (\ref{eq:integrated_lum_curv}) with $u \cdot \zcmb$. In the flat universe, the integral then becomes
+\begin{align}
+l(z, \scriptC) = \int_0^1 \zcmb \biggl( \Omegam(1 + \zcmb u)^3 + (1 - \Omegam) (1 + \zcmb u)^{3 + 3w} \biggr)^{-\frac{1}{2}} du. 
+\end{align}
+whereas in the curved universe, the integral becomes
+\begin{align}
+l(z, \scriptC) = \int_0^1 \zcmb \biggl( \Omegam(1 + \zcmb u)^3 + \OmegaL + (1- \Omegam - \OmegaL) (1 + \zcmb u)^2 \biggr)^{-\frac{1}{2}} du.
+\end{align}
+
+Lastly, the probabilisitic programming language of Stan makes the model easily readable, shareable, and mutable. Due to the algorithmic differentiation included in Stan, one simply has to code the prior and likelihood in order to run the MCMC algorithm. This means that the model can easily be modified by collaborators, which ultimately results in more efficient research progress. While this isn't a computational gain in the literal sense of the algorithm, it is a valuable contribution that should not go unnoticed. The power of this approach is most clearly seen by comparing the appendix of BAHAMAS, which includes over a dozen pages of MCMC implementation details behind each of the different models that were tried, and the much shorter Stan model included in Appendix \ref{sec:appendix_stan_ode}. Indeed, the Stan model contains all of the various model cases in one compact form, in addition to the curved and flat universe integrals, while hiding all of the algorithmic implementation details. This allows the researcher to focus strictly on the mathematical model without worrying about the computational implementation itself.

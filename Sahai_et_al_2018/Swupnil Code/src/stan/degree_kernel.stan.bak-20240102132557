@@ -1,0 +1,126 @@
+// stan model code to calculate degree if responses are "how many X do you know?" (i.e. not binary)
+
+functions {
+  // Returns the integration of the product of two normals
+  real norm_prod_int(int mu1, real mu2, real var1, real var2) {
+    real K;
+    K = 1/sqrt(2 * 3.141593 * (var1 + var2)) * exp(-(mu1 - mu2)^2/(2 * (var1 + var2)));
+    return K;
+  }
+}
+
+data {
+  int<lower=0> K_1;                       // number of names
+  int<lower=0> K_2;                       // number of occupations
+  int<lower=1> N;                         // number of respondents
+  real age_mean;                          // average age
+
+  int Y[N,K_1+K_2];                       // responses to how many X do you know
+  real w[N];                              // response survey weights
+  int age[N];                             // age of respondents
+  int<lower=1> g_n[N];                    // gender of respondents: 1=female 2=male
+  int<lower=1> g_k[K_1+K_2*2];            // genders of names: 1=female 2=male (names have one each, but occs have two genders each)
+
+  real<lower=0> mu_k[K_1+K_2*2];          // age mean for each gender-group k
+  real<lower=0> sigma_k[K_1+K_2*2];       // age standard deviation for each gender-group k
+  real<lower=0> sum_prob_k[K_1+K_2*2];    // sum population proportion of each gender-group k
+
+  real mu_d;                              // prior mean for the log_degrees
+  real<lower=0> sigma_d;                  // prior sd for the log_degrees
+  real<lower=0> alpha_omega;              // prior alpha for inv_omega
+  real<lower=0> beta_omega;               // prior beta for inv_omega
+  real mu_lambda;                         // prior mean for log_lambda
+  real<lower=0> sigma_lambda;             // prior sd for log_lambda
+  vector<lower=0>[2] alpha_rho;           // prior alpha for gender mixing rows
+  vector[3] mu_beta;                      // prior mean for beta
+  vector<lower=0>[3] sigma_beta;          // prior sd for beta
+
+  real recall_power;                      // 0 = no recall adjustment, 0.5 = recall adjustment
+  real degree_regression;                 // 0 = simple prior, 1 = agesex regression prior
+}
+
+transformed data {
+  int K;                                  // total number of groups
+  K = K_1 + K_2;
+}
+
+parameters {
+  vector[N] log_d;                        // log respondent degrees
+  real<lower=0,upper=1> inv_omega[K];     // inverse group overdispersions
+  matrix[2,2] log_lambda;                 // log var of kernel
+  simplex[2] rho[2];                      // gender mixing rates
+  vector[3] beta;                         // degree regression coefs (third is logged)
+  real log_eta;                           // log sd of degree
+}
+
+transformed parameters {
+  real<lower=0> d[N];                     // respondent degrees
+  real<lower=0> omega[K];                 // group overdispersions
+  real<lower=0> lambda[2,2];              // var of kernel
+  real<lower=0> eta;                      // sd of degree
+  for(n in 1:N) {
+    d[n] = exp(log_d[n]);
+  }
+  for(k in 1:K) {
+    omega[k] = inv(inv(inv_omega[k]) - 1);
+  }
+  for(i in 1:2) {
+    for(j in 1:2){
+      lambda[i,j] = exp(log_lambda[i,j]);
+    }
+  }
+  eta = exp(log_eta);
+}
+
+model {
+  vector[N] ex_log_d;
+  real mu_nk;
+
+  // Parameter Priors
+  for(p in 1:3) {
+    beta[p] ~ normal(mu_beta[p], sigma_beta[p]);
+  }
+  log_eta ~ normal(-0.7, 0.1);
+  inv_omega ~ beta(alpha_omega, beta_omega);
+  for(i in 1:2) {
+    rho[i] ~ dirichlet(alpha_rho);
+    for(j in 1:2) {
+      log_lambda[i,j] ~ normal(mu_lambda, sigma_lambda);
+    }
+  }
+
+  // Degree Priors
+  if(degree_regression == 1) {
+    for(n in 1:N) {
+      ex_log_d[n] = beta[1] + 
+                    beta[2] * (g_n[n]-1) - 
+                    exp(beta[3]) * ((age[n] - age_mean)/age_mean)^2;
+    }
+    log_d ~ normal(ex_log_d, eta);
+  }
+  else {
+    log_d ~ normal(mu_d, eta);
+  }
+
+  // Likelihood
+  for(k in 1:K) {
+    for(n in 1:N) {
+      if(Y[n,k] >= 0) {
+        mu_nk = rho[g_n[n], g_k[k]] *  
+                sum_prob_k[k] * 
+                norm_prod_int(age[n], mu_k[k], lambda[g_n[n],g_k[k]], sigma_k[k]^2);
+        // For occupations, we add a term for other gender
+        if(k > K_1) {
+          mu_nk = mu_nk + rho[g_n[n], g_k[k+K_2]] *  
+                          sum_prob_k[k+K_2] *
+                          norm_prod_int(age[n], mu_k[k+K_2], lambda[g_n[n],g_k[k+K_2]], sigma_k[k+K_2]^2);
+        }
+        if(recall_power > 0) {
+          mu_nk = pow(mu_nk, 1 - recall_power) * exp((-6 - exp(-7)/mu_nk) * recall_power);
+        }
+        mu_nk = mu_nk * d[n];
+        target += w[n] * neg_binomial_lpmf(Y[n,k] | omega[k] * mu_nk, omega[k]);
+      }
+    }
+  }
+}
