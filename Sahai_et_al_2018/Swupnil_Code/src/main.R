@@ -1,5 +1,5 @@
 library(here)
-code_path <- here("Sahai_et_al_2018/Swupnil Code/")
+code_path <- here("Sahai_et_al_2018/Swupnil_Code/")
 
 source(paste0(code_path,"src/load_data/surveys.R"))
 source(paste0(code_path,"src/load_data/names.R"))

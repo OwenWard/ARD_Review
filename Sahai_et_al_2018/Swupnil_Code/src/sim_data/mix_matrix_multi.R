@@ -2,12 +2,16 @@
 library(gtools);
 library(rstan);
 load("data/mix_sim/mix_mat.Rdata");
+load(here("Sahai_et_al_2018/", "Swupnil_Code", "data",
+          "mix_sim", "mix_mat.Rdata"))
 
 # Simulate fake data
 n_names = 14;
 
 omega_sim <- runif(14, 0.85, 1);
 degree_sim <- degree$CombSexAge;
+## this parameter is missing it seems
+
 
 beta_sim <- matrix(rexp(14*8, 1/mean(beta_names[beta_names>0])), nrow = 8, ncol = 14);
 colnames(beta_sim) <- paste("Name", 1:ncol(beta_sim));
