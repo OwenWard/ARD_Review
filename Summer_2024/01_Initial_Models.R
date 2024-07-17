@@ -1,7 +1,7 @@
 #### July 5th 2024 ####
 
 ## Initial simulation studies where we simulate data from and
-## fit the model of Zheng et al 2006
+## fit the model of Zheng et al 2006 and McCormick et al 2010
 
 
 
@@ -14,12 +14,14 @@ library(bayesplot)
 library(posterior)
 library(here)
 library(scales)
+library(gtools)
+library(rstan)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 
 # Simulate Data -----
 
-N <- 200
+N <- 500
 K <- 32
 
 mu_alpha <- 5 ## possible choices are -2, 5, 7.5,
@@ -51,9 +53,6 @@ sigma_beta <- 1
 stan_data <- list(N = N,
                   K = K,
                   y = y)
-                  # mu_beta = mu_beta,
-                  # sigma_beta = sigma_beta)
-
 
 stan_file <- here("Summer_2024", "zheng_et_al_06.stan")
 
@@ -70,7 +69,7 @@ stan_fit <- mod$sample(data = stan_data,
 
 # Initial Model Checking of this Model -----
 
-# stan_fit$summary()
+stan_fit$summary(variables = c("mu_alpha", "sigma_alpha"))
 
 mcmc_hist(stan_fit$draws(), pars = c("mu_alpha", "sigma_alpha"))
 
@@ -96,22 +95,52 @@ est_out_degrees <- stan_fit$draws() |>
 
 true_out_degrees <- tibble(node_id = 1:N, degree = apply(y, 1, sum)) 
 
-num_nodes <- 20
+num_nodes <- c(1:20)
 
 est_out_degrees |> 
-  filter(node_id <= num_nodes) |> 
+  filter(node_id %in% num_nodes) |> 
   ggplot(aes(degree)) +
   geom_histogram() +
-  geom_vline(data = true_out_degrees |> filter(node_id <= num_nodes), 
+  geom_vline(data = true_out_degrees |> filter(node_id %in% num_nodes), 
              mapping = aes(xintercept = degree), col = "red") +
   facet_wrap(~node_id, scales = "free", ncol = 5) +
   labs(title = "Full Model, which has poor convergence") +
-  scale_x_continuous(breaks = scales::breaks_pretty(n = 2))
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 2)) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
 
 ## these look reasonable here for a model that fits quite well
 ## even with beta's being estimated these still look good
 ## could probably modify this to a scenario where it doesn't work
 
+## see where the biggest differences are
+
+worst <- est_out_degrees |> 
+  left_join(true_out_degrees |> rename(true_degree = degree), 
+            by = "node_id") |> 
+  mutate(diff = true_degree - degree) |> 
+  group_by(node_id) |> 
+  summarise(mean_diff = mean(diff^2)) |>
+  arrange(-abs(mean_diff)) |>
+  slice_max(order_by = mean_diff, n = 10) |> 
+  pull(node_id)
+
+est_out_degrees |> 
+  filter(node_id %in% worst) |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  geom_vline(data = true_out_degrees |> filter(node_id %in% worst), 
+             mapping = aes(xintercept = degree), col = "red") +
+  facet_wrap(~node_id, scales = "free", ncol = 5) +
+  labs(title = "Full Model, which has poor convergence",
+       subtitle = "Out degrees which are poorly predicted") +
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 2)) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+
+## even for these poor examples the out degrees look quite good
+## is this due to sparsity or something?
 
 ## look at the first row of y instead
 
@@ -124,21 +153,19 @@ est_y <- stan_fit$draws() |>
          sub_pop_id = str_extract(name, pattern = "\\d+]"),
          sub_pop_id = as.numeric(str_replace(sub_pop_id, "\\]", ""))) |> 
   filter(node_id == 1) |> 
-  filter(sub_pop_id <= num_nodes)
+  filter(sub_pop_id %in% num_nodes)
 
 
 matrix_df <- as.data.frame(as.table(y))
 colnames(matrix_df) <- c("node_id", "sub_pop_id", "count")
 matrix_df$node_id <- as.numeric(matrix_df$node_id)
 matrix_df$sub_pop_id <- as.numeric(matrix_df$sub_pop_id)
-
-
 true_y <- as_tibble(matrix_df)
 
 est_y |> 
   ggplot(aes(count)) +
   geom_histogram() +
-  geom_vline(data = true_y |> filter(node_id == 1 & sub_pop_id <= num_nodes),
+  geom_vline(data = true_y |> filter(node_id == 1 & sub_pop_id %in% num_nodes),
              mapping = aes(xintercept = count), col = "red") +
   facet_wrap(~sub_pop_id, scales = "free", ncol = 5) +
   labs(title = "Posterior Predictive of Entries of y, Full Model") +
@@ -146,7 +173,6 @@ est_y |>
 
 
 ## distribution of average gregariousness also
-
 est_greg <- stan_fit$draws() |> 
   as_draws_df() |> 
   select(starts_with("alpha")) |> 
@@ -162,10 +188,28 @@ est_greg |>
   labs(y = element_blank(),
        x = "Mean Gregariousness Parameter", 
        title = "Full Model") +
-  geom_vline(data = true_out_degrees |> summarise(avg = mean(degree)), 
-             mapping = aes(xintercept = avg), col = "red") +
+  # geom_vline(data = true_out_degrees |> summarise(avg = mean(degree)), 
+  #            mapping = aes(xintercept = avg), col = "red") +
+  geom_vline(aes(xintercept = mean(exp(alpha))), col = "red") +
   theme(axis.ticks.y = element_blank(),
         axis.text.y = element_blank())
+
+
+## not sure the average is accurate, given the potential long tail
+## will instead just plot the distribution of gregariousness, compare
+## it to the truth
+
+true_greg <- tibble(greg = exp(alpha))
+
+est_greg |> 
+  ggplot(aes(est_greg)) +
+  geom_histogram() +
+  geom_histogram(data = true_greg, mapping = aes(x = greg),
+                 colour = "red", alpha = 0.5) +
+  # scale_x_log10() +
+  NULL
+
+## these not comparable at all here now
 
 
 # Repeat for the simpler Bayesian Model -----------------------------------
@@ -185,15 +229,14 @@ mod_simple <- cmdstan_model(stan_file_simple)
 stan_fit_simple <- mod_simple$sample(data = stan_data_simple,
                        seed = 123,
                        chains = 4,
-                       iter_sampling = 500,
-                       iter_warmup = 500,
+                       # iter_sampling = 500,
+                       # iter_warmup = 500,
                        parallel_chains = 4,
                        refresh = 100)
 
-
+stan_fit_simple$summary(variables = c("mu_alpha", "sigma_alpha"))
 mcmc_hist(stan_fit_simple$draws(), pars = c("mu_alpha", "sigma_alpha"))
 mcmc_trace(stan_fit_simple$draws(), pars = c("mu_alpha", "sigma_alpha"))
-
 
 est_out_degrees_simple <- stan_fit_simple$draws() |> 
   as_draws_df() |> 
@@ -202,16 +245,28 @@ est_out_degrees_simple <- stan_fit_simple$draws() |>
   pivot_longer(cols = starts_with("out"), values_to = "degree") |> 
   mutate(node_id = as.numeric(str_extract(name, pattern = "\\d+"))) 
 
+## try identify the most wrong ones
+worst_simple <- est_out_degrees_simple |> 
+  left_join(true_out_degrees |> rename(true_degree = degree), 
+            by = "node_id") |> 
+  mutate(diff = true_degree - degree) |> 
+  group_by(node_id) |> 
+  summarise(mean_diff = mean(diff^2)) |>
+  arrange(-abs(mean_diff)) |> 
+  slice_max(order_by = mean_diff, n = 10) |> 
+  pull(node_id)
 
 est_out_degrees_simple |> 
-  filter(node_id <= num_nodes) |> 
+  filter(node_id %in% worst_simple) |> 
   ggplot(aes(degree)) +
   geom_histogram() +
-  geom_vline(data = true_out_degrees |> filter(node_id <= num_nodes), 
+  geom_vline(data = true_out_degrees |> filter(node_id %in% worst_simple), 
              mapping = aes(xintercept = degree), col = "red") +
   facet_wrap(~node_id, scales = "free", ncol = 5) +
   labs(title = "Model with Known Beta distribution") +
-  scale_x_continuous(breaks = scales::breaks_pretty(n = 2))
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 2)) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
 
 est_y_simple <- stan_fit_simple$draws() |> 
   as_draws_df() |> 
@@ -222,16 +277,17 @@ est_y_simple <- stan_fit_simple$draws() |>
          sub_pop_id = str_extract(name, pattern = "\\d+]"),
          sub_pop_id = as.numeric(str_replace(sub_pop_id, "\\]", ""))) |> 
   filter(node_id == 1) |> 
-  filter(sub_pop_id < num_nodes)
-
+  filter(sub_pop_id %in% num_nodes)
 
 est_y_simple |> 
   ggplot(aes(count)) +
   geom_histogram() +
-  geom_vline(data = true_y |> filter(node_id == 1 & sub_pop_id <= num_nodes),
+  geom_vline(data = true_y |> filter(node_id == 1 & sub_pop_id %in% num_nodes),
              mapping = aes(xintercept = count), col = "red") +
   facet_wrap(~sub_pop_id, scales = "free", ncol = 5) +
-  labs(title = "Posterior Predictive of Entries of y, Simple Model")
+  labs(title = "Posterior Predictive of Entries of y, Simple Model") +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
 
 
 ## plot estimated degrees after transforming draws of alpha
@@ -251,10 +307,22 @@ est_greg_simple |>
   labs(y = element_blank(),
        x = "Mean Gregariousness Parameter", 
        title = "Simple Model") +
-  geom_vline(data = true_out_degrees |> summarise(avg = mean(degree)), 
-             mapping = aes(xintercept = avg), col = "red") +
+  geom_vline(aes(xintercept = mean(exp(alpha))), col = "red") +
+  # geom_vline(data = true_out_degrees |> summarise(avg = mean(degree)), 
+  #            mapping = aes(xintercept = avg), col = "red") +
   theme(axis.ticks.y = element_blank(),
         axis.text.y = element_blank())
+
+
+est_greg_simple |> 
+  ggplot(aes(est_greg)) +
+  geom_histogram() +
+  geom_histogram(data = true_greg, mapping = aes(x = greg),
+                 colour = "red", alpha = 0.5) +
+  # scale_x_log10() +
+  NULL
+
+## something I still don't like about these plots here
 
 
 # Things to think about ---------------------------------------------------
@@ -262,3 +330,88 @@ est_greg_simple |>
 ## Other comparisons, such as plotting estimated against true alpha, beta
 
 ## Other possible ppc.
+
+
+
+# Trying to Recreate Figure 2 in Sahai et al ------------------------------
+
+## to do this need to specify 14 names it seems
+
+load(here("Sahai_et_al_2018/", "Swupnil_Code", "data",
+          "mix_sim", "mix_mat.Rdata"))
+
+## this only loads in mixing.sim, no other data/variables, 
+## which has 6 rows and 8 columns
+
+
+n_names <- 14
+
+omega_sim <- runif(n_names, 0.85, 1)
+
+
+
+M_sim <- matrix(c(rdirichlet(1, mixing.sim[1, ]),
+                  rdirichlet(1, mixing.sim[2, ]),
+                  rdirichlet(1, mixing.sim[3, ]),
+                  rdirichlet(1, mixing.sim[4, ]),
+                  rdirichlet(1, mixing.sim[5, ]),
+                  rdirichlet(1, mixing.sim[6, ])),
+                     nrow = 6, ncol = 8, byrow = TRUE)
+
+## after running source(paste0(code_path,"src/load_data/occs.R"))
+## there is then an object called beta_names,
+## along with ego_sex_age
+
+beta_sim <- matrix(rexp(14 * 8, 1/mean(beta_names[beta_names>0])),
+                   nrow = 8, ncol = 14)
+colnames(beta_sim) <- paste("Name", 1:ncol(beta_sim))
+rownames(beta_sim) <- paste("Alter", 1:nrow(beta_sim))
+
+ego_sim <- ego_sex_age
+
+
+## need to find beta_names and degree which has
+## CombSexAge in it
+## I think this should be some of the real data, but not sure which part
+## think it's from degree_mix.csv
+
+degree <- read.csv(here("Sahai_et_al_2018/", "Swupnil_Code",
+                        "estimates", "degree_mix.csv"))
+
+degree_sim <- degree$CombSexAge
+
+source(here("Sahai_et_al_2018", "Swupnil_code", "src",
+            "funcs", "mix_matrix.R"))
+
+names_data_sim <- simulate_mixing(degree_sim, omega_sim,
+                                  M_sim, beta_sim, ego_sim)
+
+names_data_sim
+
+
+# for(k in c(4,6,8,10,12,14)) {
+k <- 14
+mcmc_data_sim_k <- list(E = 6, A = 8, K = k,
+                        N = nrow(names_data_sim),
+                        y = names_data_sim[, c(1:k)],
+                        ego = ego_sim,
+                        Beta = beta_sim[, c(1:k)],
+                        theta_d = c(6.2, .5),
+                        theta_o = c(3, 2),
+                        alpha = rep(1, 8)/8,
+                        p = 0.6)
+## not sure about the value of p here, can be in [0.5, 1]
+
+
+## then load in the stan code for this model
+source(here("Sahai_et_al_2018/", "Swupnil_code", "archive", 
+            "Degree_Mixing_Code.Stan.R"))
+
+degree_mixing_fit <- stan_model(model_code = degree_mixing_code,
+                                model_name = "Degree")
+
+fit_comb_k <- sampling(degree_mixing_fit, data = mcmc_data_sim_k,
+                       iter = 1000, chains = 4)
+
+plot_mix_comp(fit_comb_k, M_sim, paste(k, "Names"))
+# }
