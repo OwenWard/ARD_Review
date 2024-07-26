@@ -19,6 +19,16 @@ library(rstan)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 
+
+theme_no_y <- function(){ 
+  theme_bw() %+replace%    #replace elements we want to change
+    
+    theme(
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank()
+    )
+}
+
 # Simulate Data -----
 
 N <- 500
@@ -104,7 +114,8 @@ est_out_degrees |>
   geom_vline(data = true_out_degrees |> filter(node_id %in% num_nodes), 
              mapping = aes(xintercept = degree), col = "red") +
   facet_wrap(~node_id, scales = "free", ncol = 5) +
-  labs(title = "Full Model, which has poor convergence") +
+  labs(title = "Full Model, which has poor convergence",
+       x = "Sample Out Degree", y = element_blank()) +
   scale_x_continuous(breaks = scales::breaks_pretty(n = 2)) +
   theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank())
@@ -203,10 +214,13 @@ true_greg <- tibble(greg = exp(alpha))
 
 est_greg |> 
   ggplot(aes(est_greg)) +
-  geom_histogram() +
-  geom_histogram(data = true_greg, mapping = aes(x = greg),
-                 colour = "red", alpha = 0.5) +
+  geom_histogram(aes(y = after_stat(density))) +
+  geom_histogram(data = true_greg, 
+                 mapping = aes(x = greg,
+                               y = after_stat(density)),
+                 fill = "red", alpha = 0.75) +
   # scale_x_log10() +
+  labs(x = "Log Gregariousness") +
   NULL
 
 ## these not comparable at all here now
@@ -316,14 +330,16 @@ est_greg_simple |>
 
 est_greg_simple |> 
   ggplot(aes(est_greg)) +
-  geom_histogram() +
-  geom_histogram(data = true_greg, mapping = aes(x = greg),
-                 colour = "red", alpha = 0.5) +
-  # scale_x_log10() +
+  geom_histogram(aes(y = after_stat(density))) +
+  geom_histogram(data = true_greg, 
+                 mapping = aes(x = greg,
+                               y = after_stat(density)),
+                 fill = "red", alpha = 0.5) +
+  scale_x_log10() +
+  labs(x = "Log Gregariousness") +
   NULL
 
-## something I still don't like about these plots here
-
+## for this model the distribution looks pretty good, seems to make sense
 
 # Things to think about ---------------------------------------------------
 
@@ -348,8 +364,6 @@ n_names <- 14
 
 omega_sim <- runif(n_names, 0.85, 1)
 
-
-
 M_sim <- matrix(c(rdirichlet(1, mixing.sim[1, ]),
                   rdirichlet(1, mixing.sim[2, ]),
                   rdirichlet(1, mixing.sim[3, ]),
@@ -361,6 +375,13 @@ M_sim <- matrix(c(rdirichlet(1, mixing.sim[1, ]),
 ## after running source(paste0(code_path,"src/load_data/occs.R"))
 ## there is then an object called beta_names,
 ## along with ego_sex_age
+
+code_path <- here("Sahai_et_al_2018/Swupnil_Code/")
+source(paste0(code_path,"src/load_data/surveys.R"))
+source(paste0(code_path,"src/load_data/names.R"))
+source(paste0(code_path,"src/load_data/occs.R"))
+
+## think there are 6 ego groups and 8 alter groups
 
 beta_sim <- matrix(rexp(14 * 8, 1/mean(beta_names[beta_names>0])),
                    nrow = 8, ncol = 14)
@@ -390,7 +411,7 @@ names_data_sim
 
 
 # for(k in c(4,6,8,10,12,14)) {
-k <- 14
+k <- 4 ## the number of names used in the fitting
 mcmc_data_sim_k <- list(E = 6, A = 8, K = k,
                         N = nrow(names_data_sim),
                         y = names_data_sim[, c(1:k)],
@@ -399,19 +420,82 @@ mcmc_data_sim_k <- list(E = 6, A = 8, K = k,
                         theta_d = c(6.2, .5),
                         theta_o = c(3, 2),
                         alpha = rep(1, 8)/8,
-                        p = 0.6)
+                        p = 1)
+
 ## not sure about the value of p here, can be in [0.5, 1]
-
-
 ## then load in the stan code for this model
+
+## should update this to cmdstanr
+
 source(here("Sahai_et_al_2018/", "Swupnil_code", "archive", 
             "Degree_Mixing_Code.Stan.R"))
 
 degree_mixing_fit <- stan_model(model_code = degree_mixing_code,
                                 model_name = "Degree")
 
-fit_comb_k <- sampling(degree_mixing_fit, data = mcmc_data_sim_k,
+fit_comb_k <- sampling(degree_mixing_fit, 
+                       data = mcmc_data_sim_k,
                        iter = 1000, chains = 4)
 
 plot_mix_comp(fit_comb_k, M_sim, paste(k, "Names"))
 # }
+
+
+
+fit_comb_k
+
+
+## updating this stan code 
+
+degree_mix_mod <- cmdstan_model(stan_file = here("Summer_2024",
+                                                 "Degree_Mixing.stan"))
+
+fit <- degree_mix_mod$sample(data = mcmc_data_sim_k)
+
+
+## then can look at histogram of the degrees
+## here I think the degree are their true degrees, because 
+## mixing accounts for proportion across population
+
+fit$summary()
+
+
+degree_draws <- fit$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("log_d")) |>
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("log_d"), values_to = "log_degree") |> 
+  mutate(node_id = as.numeric(str_extract(name, pattern = "\\d+"))) 
+
+
+true_deg <- tibble(degree = degree_sim) |> 
+  mutate(log_degree = log(degree), node_id = row_number())
+
+num_nodes <- 20
+
+degree_draws |> 
+  filter(node_id <= num_nodes) |> 
+  ggplot(aes(log_degree)) +
+  geom_histogram() + 
+  geom_vline(data = true_deg |> filter(node_id <= num_nodes), 
+             mapping = aes(xintercept = log_degree),
+             col = "red") +
+  facet_wrap(~node_id, scales = "free") +
+  theme_no_y()
+
+
+## could check the proportion
+
+degree_draws |> 
+  group_by(node_id) |> 
+  summarise(lower = quantile(log_degree, prob = 0.025),
+            upper = quantile(log_degree, prob = 0.975)) |> 
+  left_join(true_deg, by = "node_id") |> 
+  rename(true_log_deg = log_degree) |> 
+  rowwise() |> 
+  mutate(in_int = ifelse(true_log_deg > lower & true_log_deg < upper,
+                         1, 0)) |> 
+  ungroup() |> 
+  summarise(sum(in_int)/n())
+
+## so basically 95% coverage here
