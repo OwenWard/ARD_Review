@@ -34,7 +34,7 @@ theme_no_y <- function(){
 N <- 500
 K <- 32
 
-mu_alpha <- 5 ## possible choices are -2, 5, 7.5,
+mu_alpha <- 5 ## possible choices are -2, 0, 5, 7.5,
 mu_beta <- -5
 sigma_alpha <- 1 ## possible choices are 1, 5
 sigma_beta <- 1
@@ -153,6 +153,16 @@ est_out_degrees |>
 ## even for these poor examples the out degrees look quite good
 ## is this due to sparsity or something?
 
+## look at empirical coverage for the estimated degrees
+
+est_out_degrees |> 
+  group_by(node_id) |> 
+  summarise(low_q = quantile(degree, probs = 0.025),
+            upper_q = quantile(degree, probs = 0.975)) |> 
+  left_join(true_out_degrees, by = "node_id") |> 
+  mutate(in_int = ifelse((degree >= low_q & degree <= upper_q), 1, 0)) |> 
+  summarise(coverage = sum(in_int)/n())
+
 ## look at the first row of y instead
 
 est_y <- stan_fit$draws() |> 
@@ -219,11 +229,35 @@ est_greg |>
                  mapping = aes(x = greg,
                                y = after_stat(density)),
                  fill = "red", alpha = 0.75) +
-  # scale_x_log10() +
+  scale_x_log10() +
   labs(x = "Log Gregariousness") +
   NULL
 
-## these not comparable at all here now
+
+## these not comparable at all here now when mu alpha = 5, but are when = 0
+
+
+## compute the proportion of y's = 0, 1, 3, 5, 9, 10
+## get tibble of true values
+
+
+
+curr_prop <- 0
+
+true_prop <- true_y |> 
+  mutate(prop_count = ifelse(count == curr_prop, 1, 0)) |> 
+  summarise(prop = mean(prop_count))
+
+est_y |> 
+  mutate(prop_0 = ifelse(count == curr_prop, 1, 0)) |> 
+  group_by(draw) |> 
+  summarise(prop = mean(prop_0)) |> 
+  ggplot(aes(prop)) +
+  geom_histogram(bins = 30) +
+  geom_vline(xintercept = true_prop$prop, col = "red")
+
+
+
 
 
 # Repeat for the simpler Bayesian Model -----------------------------------
@@ -302,6 +336,22 @@ est_y_simple |>
   labs(title = "Posterior Predictive of Entries of y, Simple Model") +
   theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank())
+
+
+curr_prop <- 3
+
+true_prop <- true_y |> 
+  mutate(prop_count = ifelse(count == curr_prop, 1, 0)) |> 
+  summarise(prop = mean(prop_count))
+
+est_y_simple |> 
+  mutate(prop_0 = ifelse(count == curr_prop, 1, 0)) |> 
+  group_by(draw) |> 
+  summarise(prop = mean(prop_0)) |> 
+  ggplot(aes(prop)) +
+  geom_histogram(bins = 30) +
+  geom_vline(xintercept = true_prop$prop, col = "red")
+
 
 
 ## plot estimated degrees after transforming draws of alpha
@@ -411,7 +461,7 @@ names_data_sim
 
 
 # for(k in c(4,6,8,10,12,14)) {
-k <- 4 ## the number of names used in the fitting
+k <- 14 ## the number of names used in the fitting
 mcmc_data_sim_k <- list(E = 6, A = 8, K = k,
                         N = nrow(names_data_sim),
                         y = names_data_sim[, c(1:k)],
@@ -499,3 +549,13 @@ degree_draws |>
   summarise(sum(in_int)/n())
 
 ## so basically 95% coverage here
+
+
+## could check the proportion of y_{ik}=0,1,3,5 etc
+
+y_draws <- fit$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("y")) |>
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("log_d"), values_to = "log_degree") |> 
+  mutate(node_id = as.numeric(str_extract(name, pattern = "\\d+"))) 
