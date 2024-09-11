@@ -454,11 +454,27 @@ degree_sim <- degree$CombSexAge
 source(here("Sahai_et_al_2018", "Swupnil_code", "src",
             "funcs", "mix_matrix.R"))
 
+simulate_mixing <- function(d, omega, M, beta, ego) {
+  y <- matrix(nrow = length(d), ncol = ncol(beta))
+  
+  for (i in 1:nrow(y)) {
+    for (j in 1:ncol(y)) {
+      mu_ij <- d[i] * M[ego[i], ] %*% beta[, j]
+      y[i, j] <- MASS::rnegbin(1, mu_ij, omega[j] * mu_ij)
+    }
+  }
+  
+  return(y)
+}
+
 names_data_sim <- simulate_mixing(degree_sim, omega_sim,
                                   M_sim, beta_sim, ego_sim)
 
 names_data_sim
 
+
+## I think the egos and alters here correspond to M/F and age groups,
+## like in the swupnil paper
 
 # for(k in c(4,6,8,10,12,14)) {
 k <- 14 ## the number of names used in the fitting
@@ -477,22 +493,22 @@ mcmc_data_sim_k <- list(E = 6, A = 8, K = k,
 
 ## should update this to cmdstanr
 
-source(here("Sahai_et_al_2018/", "Swupnil_code", "archive", 
+source(here("Sahai_et_al_2018/", "Swupnil_code", "archive",
             "Degree_Mixing_Code.Stan.R"))
 
 degree_mixing_fit <- stan_model(model_code = degree_mixing_code,
                                 model_name = "Degree")
 
-fit_comb_k <- sampling(degree_mixing_fit, 
+fit_comb_k <- sampling(degree_mixing_fit,
                        data = mcmc_data_sim_k,
                        iter = 1000, chains = 4)
 
 plot_mix_comp(fit_comb_k, M_sim, paste(k, "Names"))
 # }
-
-
-
-fit_comb_k
+# 
+# 
+# 
+# fit_comb_k
 
 
 ## updating this stan code 
@@ -500,14 +516,14 @@ fit_comb_k
 degree_mix_mod <- cmdstan_model(stan_file = here("Summer_2024",
                                                  "Degree_Mixing.stan"))
 
-fit <- degree_mix_mod$sample(data = mcmc_data_sim_k)
+fit <- degree_mix_mod$sample(data = mcmc_data_sim_k,
+                             iter_warmup = 500,
+                             iter_sampling = 500)
 
 
 ## then can look at histogram of the degrees
 ## here I think the degree are their true degrees, because 
 ## mixing accounts for proportion across population
-
-fit$summary()
 
 
 degree_draws <- fit$draws() |> 
@@ -554,8 +570,157 @@ degree_draws |>
 ## could check the proportion of y_{ik}=0,1,3,5 etc
 
 y_draws <- fit$draws() |> 
-  as_draws_df() |> 
-  dplyr::select(starts_with("y")) |>
+  as_draws_df()
+
+## first get the generated quantities of interest here
+
+ppc_y <- y_draws |> 
+  dplyr::select(starts_with("y_sim")) |> 
   mutate(draw = row_number()) |> 
-  pivot_longer(cols = starts_with("log_d"), values_to = "log_degree") |> 
-  mutate(node_id = as.numeric(str_extract(name, pattern = "\\d+"))) 
+  pivot_longer(cols = starts_with("y_sim"), values_to = "count") |> 
+  mutate(node_id = as.numeric(str_extract(name, pattern = "\\d+")),
+         sub_pop_id = str_extract(name, pattern = "\\d+]"),
+         sub_pop_id = as.numeric(str_replace(sub_pop_id, "\\]", ""))) 
+
+
+
+## then get the truth in the right format also
+true_y_mat <- mcmc_data_sim_k$y
+
+
+matrix_df <- as.data.frame(as.table(true_y_mat))
+colnames(matrix_df) <- c("node_id", "sub_pop_id", "count")
+matrix_df$node_id <- as.numeric(matrix_df$node_id)
+matrix_df$sub_pop_id <- as.numeric(matrix_df$sub_pop_id)
+true_y <- as_tibble(matrix_df)
+
+
+prop_val <- 5
+
+true_y_prop <- true_y |> 
+  summarise(true_prop = sum(count == prop_val)/n())
+
+ppc_y |> 
+  group_by(draw) |> 
+  summarise(prop = sum(count == prop_val)/n()) |> 
+  ggplot(aes(prop)) +
+  geom_histogram() +
+  geom_vline(xintercept = true_y_prop$true_prop, col = "red")
+
+
+
+## redoing the swupnil plot using cmdstan output instead
+
+stan_draws <- as_draws_df(fit)
+
+M_mu <- stan_draws |> 
+  dplyr::select(starts_with("M")) |> 
+  summarise(across(everything(), \(x) mean(x)))
+  
+M_sd <- stan_draws |> 
+  dplyr::select(starts_with("M")) |> 
+  summarise(across(everything(), \(x) sd(x)))
+
+
+## then convert these into a matrix
+
+
+convert_tibble_to_matrix <- function(tibble) {
+  # Step 1: Extract `i` and `j` values from the column names
+  tibble_long <- tibble %>%
+    pivot_longer(cols = everything(), names_to = "var", values_to = "value") %>%
+    separate(var, into = c("M", "i", "j"), sep = "\\[|,|\\]", convert = TRUE) %>%
+    dplyr::select(-M)  # Drop the "M" column
+  
+  # Step 2: Determine the dimensions of the matrix
+  nrow <- max(tibble_long$i)
+  ncol <- max(tibble_long$j)
+  
+  # Step 3: Initialize the matrix
+  M_matrix <- matrix(NA, nrow = nrow, ncol = ncol)
+  
+  # Step 4: Fill the matrix using `i` and `j` indices
+  for (k in 1:nrow(tibble_long)) {
+    i <- tibble_long$i[k]
+    j <- tibble_long$j[k]
+    M_matrix[i, j] <- tibble_long$value[k]
+  }
+  
+  return(M_matrix)
+}
+
+M_mu_est <- convert_tibble_to_matrix(M_mu)
+## then repeat this for sd, tidy it up a bit
+M_sd_est <- convert_tibble_to_matrix(M_sd)
+M_true <- M_sim
+
+
+plot(x = c(), y = c(), xlim = c(0, ncol(M_mu_est) + 1),
+     ylim = c(0, nrow(M_mu_est) + 1),
+     xlab = "Alter", ylab = "Ego", main = paste(k, "Names"))
+for (i in 1:nrow(M_mu_est)) {
+  for (j in 1:ncol(M_mu_est)) {
+    points(j, i, pch = 20,
+           cex = abs(M_mu_est[i, j] - M_true[i, j]) / M_true[i, j],
+           col = adjustcolor("black", alpha.f = .5))
+    points(j, i, pch = 20,
+           cex = M_sd_est[i, j] / M_true[i, j],
+           col = adjustcolor("red", alpha.f = .5))
+  }
+}
+
+## what exactly are these names used for here so?
+
+
+# recreate fig 10 from 2006 paper -----------------------------------------
+
+
+## want to plot true proportion of y = 0,1,3,5 against ppc estimates
+## and do this across the k names used each time
+
+## first check prop = 0
+
+prop_val <- 0
+
+
+
+
+plot_ests <- function(ppc_y, true_y, prop_val = 0) {
+  ## takes in two tibbles, ppc_y and true_y, of
+  ## the draws of each entry of y and of the true y 
+  ## respectively
+  
+  ppc_prop <- ppc_y |> 
+    group_by(sub_pop_id, draw) |> 
+    summarise(prop = sum(count == prop_val)/n()) |> 
+    group_by(sub_pop_id) |> 
+    summarise(avg = mean(prop), 
+              lower = quantile(prop, 0.025),
+              upper = quantile(prop, 0.975))
+  
+  true_prop <- true_y |> 
+    group_by(sub_pop_id) |> 
+    summarise(true_prop = sum(count == prop_val)/n()) 
+  
+  
+  final_plot <- ppc_prop |> 
+    left_join(true_prop) |> 
+    arrange(true_prop) |> 
+    mutate(index = row_number()) |> 
+    ggplot(aes(x = true_prop, y = avg)) +
+    geom_point() +
+    geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.01, alpha = 0.5) +
+    coord_flip() + 
+    geom_abline(slope = 1, intercept = 0, alpha = 0.25, col = "red") +
+    labs(x = "Simulated", y = "Data",
+         title = paste0("Prop = ", prop_val))
+  
+  final_plot
+}
+
+
+plot_k_14 <- plot_ests(ppc_y, true_y, prop_val = 1)
+
+
+plot_k_14 +
+  labs(subtitle = "k = 14 used here")

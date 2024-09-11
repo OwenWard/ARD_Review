@@ -63,9 +63,11 @@ generated quantities {
   array[N, K] int y_sim;
   for (n in 1:N) {
     for (k in 1:K) {
-      real gamma = inv_omega[k]/(1 - inv_omega[k]) ; //the beta par of neg_bin
-      real xi_i_k = gamma * exp(alpha[n] + beta[k])  ;
-      y_sim[n, k] = neg_binomial_rng(xi_i_k, gamma) ;
+      if(y[n,k]>=0) {
+        real mu_ik = omega[k] * d[n] * dot_product(M[ego[n]], sub_col(Beta, 1, k, A));
+        mu_ik = pow(mu_ik, p);
+        y_sim[n,k] = neg_binomial_rng(mu_ik, omega[k]);
+      }
     }
     out_degree[n] = sum( y_sim[n] );
   }
