@@ -48,11 +48,11 @@ model {
   
   for(k in 1:K) {
     for(n in 1:N) {
-      if(y[n,k]>=0) {
+      // if(y[n,k]>=0) {
         mu_ik = omega[k] * d[n] * dot_product(M[ego[n]], sub_col(Beta, 1, k, A));
         mu_ik = pow(mu_ik, p);
         y[n,k] ~ neg_binomial(mu_ik, omega[k]);
-      }
+      // }
     }
   }
 }

@@ -477,7 +477,7 @@ names_data_sim
 ## like in the swupnil paper
 
 # for(k in c(4,6,8,10,12,14)) {
-k <- 14 ## the number of names used in the fitting
+k <- 8 ## the number of names used in the fitting
 mcmc_data_sim_k <- list(E = 6, A = 8, K = k,
                         N = nrow(names_data_sim),
                         y = names_data_sim[, c(1:k)],
@@ -719,8 +719,14 @@ plot_ests <- function(ppc_y, true_y, prop_val = 0) {
 }
 
 
-plot_k_14 <- plot_ests(ppc_y, true_y, prop_val = 1)
+plot_k_14 <- plot_ests(ppc_y, true_y, prop_val = 9)
 
 
 plot_k_14 +
-  labs(subtitle = "k = 14 used here")
+  labs(subtitle = "k = 8 used here")
+
+
+
+#### want to try recreate this using the alters rather than the subpops
+
+## ego_sim is from 1 - 6, which corresponds to the 3 age groups for M/F 

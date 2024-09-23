@@ -15,7 +15,7 @@ data {
 
 
 parameters {
-  real mu_alpha;
+  // real mu_alpha;
   real mu_beta;
   real<lower=0> sigma_alpha;
   real<lower=0> sigma_beta;
@@ -27,13 +27,15 @@ parameters {
 // The model to be estimated..
 model {
   
-  mu_alpha ~ normal(0, 5);
+  // mu_alpha ~ normal(0, 5);
   sigma_alpha ~ normal(0, 5);
   
   mu_beta ~ normal(0, 5);
   sigma_beta ~ normal(0, 5);
   
-  alpha ~ normal(mu_alpha, sigma_alpha);
+  
+  // to make identifiable we constrain mu_alpha to be 0
+  alpha ~ normal(0, sigma_alpha);
   beta ~ normal(mu_beta, sigma_beta); 
   
   for(n in 1:N){
