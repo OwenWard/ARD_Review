@@ -5,6 +5,9 @@
 ## with positions on the p+1 dimensional hypersphere
 
 
+## then fit the 2006 and 2015 models to this simulated data (initially)
+
+
 ## the latent position vectors drawn uniformly from the surface
 ## and that p = 2
 
@@ -13,9 +16,15 @@
 # Setup and Load Packages -------------------------------------------------
 
 library(rotasym)
+library(tidyverse)
+library(cmdstanr)
+library(here)
+library(bayesplot)
+library(posterior)
+options(mc.cores = parallel::detectCores())
+theme_set(theme_bw())
 
-
-
+source(here("Summer_2024/", "helper_model_checking.R"))
 
 # Simulate the Positions and Overall Network -----------------------------------
 
@@ -32,35 +41,43 @@ kappa <- 2
 latent_positions <- r_vMF(n = n_population, mu = mu, kappa = kappa)
 
 
+all_greg <- rep(NA, n_population)
+
+
+gen_greg <- -12 ## the population mean greg, if not in a subpop
+sd_greg <- 1
+
 ## sample the gregariousness params of ARD sample
 ## these don't need to be integer necessarily
 ## this the alpha of the 2006 paper?
-samp_greg <- rnorm(n_sample, mean = -2, sd = 1)
+samp_greg <- rnorm(n_sample, mean = gen_greg, sd = sd_greg)
 
 ## the latent positions of the ARD sample
-samp_pos <- latent_positions[sample(1:n_population, n_sample), ]
+sample_ids <- sample(1:n_population, n_sample)
+
+samp_pos <- latent_positions[sample_ids, ]
+
+all_greg[sample_ids] <- samp_greg
 
 
-
-# Simulate the Subpopulation Members --------------------------------------
+# Simulate the Subpopulation Members and Structure------------------------------
 
 ## first simulate the subpopulation centers uniformly on the sphere
 
 
-subpop_centers <- r_vMF(n = n_subpop, mu = c(1, 0, 0), kappa = 1)
+subpop_centers <- r_vMF(n = n_subpop, mu = c(1, 0, 0), kappa = 0.5)
 
+sub_pop_id <- rep(NA, n_population)
 
 ## assume that different subpops have common dist for greg
 ## differences in mean gregariousness and smaller sd than
 ## the population
-subpop_greg_means <- seq(from = -2.5, to = 3.5, length.out = n_subpop)
+subpop_greg_means <- seq(from = 5, to = 7.5, length.out = n_subpop)
 subpop_greg_sd <- 0.25
 
-y_sim <- matrix(NA, nrow = n_sample, ncol = n_subpop)
 
 
-gamma <- 1
-lambda <- 1
+lambda <- 8
 
 for(k in 1:n_subpop){
   
@@ -85,32 +102,314 @@ for(k in 1:n_subpop){
   subpop_greg <- rnorm(n = sum(sub_member),
                        mean = subpop_greg_means[k],
                        sd = subpop_greg_sd)
-  
+  all_greg[sub_member == 1] <- subpop_greg
+  sub_pop_id[sub_member == 1] <- k
   ## then need to store these subpopgreg parameters for those members of
   ## the pop
   
-  for(i in 1:n_sample){
-    curr_greg <- samp_greg[i]
-    curr_loc <- samp_pos[i,]
-    node_dist <- curr_subpop %*% curr_loc
-    exp_term <- curr_greg + subpop_greg + gamma * node_dist
-    ## these aren't normalized so need to figure this part out better...
-    prob_edge <- 1/(1 + exp(-exp_term)) 
-    true_edge <- rbinom(sum(sub_member), size = 1, prob = prob_edge)
-    y_sim[i, k] <- sum(true_edge)
-  }
-  
+}
+
+
+remaining_greg <- rnorm(n = sum(is.na(all_greg)), mean = gen_greg, sd = sd_greg)
+all_greg[is.na(all_greg)] <- remaining_greg
+
+
+
+# Simulate the True Degrees and Corresponding ARD-------------------------------
+
+y_sim <- matrix(NA, nrow = n_sample, ncol = n_subpop)
+samp_degree <- rep(NA, n_sample)
+gamma <- -3 ## smaller values lead to larger degree
+
+for(i in 1:n_sample){
+  pop_id <- sample_ids[i]
+  curr_greg <- samp_greg[i]
+  curr_loc <- samp_pos[i, ]
+  node_dist <- latent_positions %*% curr_loc
+  exp_term <- curr_greg + all_greg + gamma * as.vector(node_dist)
+  prob_edge <- 1/(1 + exp(-exp_term)) 
+  true_edge <- rbinom(n_population, size = 1, prob = as.vector(prob_edge))
+  samp_degree[i] <- sum(true_edge)
+  ## then get the ARD data out of this
+  ard_info <- tibble(id = 1:n_population, 
+         sub_pop_member = sub_pop_id,
+         edge = true_edge) |>
+    drop_na() |> 
+    filter(id != pop_id) |>  # to avoid self loops
+    group_by(sub_pop_member) |> 
+    summarise(n = sum(edge)) 
+  y_sim[i, ard_info$sub_pop_member] <- ard_info$n
 }
 
 
 y_sim
 
-apply(y_sim, 2, sum)
+hist(samp_degree, breaks = 50)
+
+## how many large values are there here, in the ard sample
+length(samp_degree[samp_degree > 1500])
+summary(samp_degree)
+
+## check the sparsity of the ard matrix
+sum(y_sim > 0)/(n_sample * n_subpop)
+summary(as.vector(y_sim))
+hist(y_sim, breaks = 50)
+
+
+
 ## can tweak these parameters as needed to make them look more reasonable
 
 ## then can figure out the true alpha and betas from the way the data is
 ## simulated also
 ## because the n_sample nodes are a random sample from the population
+
+
+
+# Plot the latent positions of Subpopulations -----------------------------
+colnames(subpop_centers) <- c("x", "y", "z")
+subpop_info <- as_tibble(subpop_centers) |> 
+  mutate(id = row_number()) |> 
+  mutate(theta = atan2(y, x),
+         theta = ifelse(theta < 0, theta + 2 * pi, theta),
+         phi = acos(z)) 
+
+colnames(latent_positions) <- c("x", "y", "z")
+
+as_tibble(latent_positions) |> 
+  mutate(subpop = sub_pop_id) |> 
+  drop_na() |> 
+  mutate(theta = atan2(y, x),
+         theta = ifelse(theta < 0, theta + 2 * pi, theta),
+         phi = acos(z)) |>
+  # slice_sample(n = 1000) |> 
+  ggplot(aes(theta, phi, colour = as.factor(subpop))) +
+  geom_point(alpha = 0.1) +
+  geom_point(data = subpop_info, 
+             mapping = aes(theta, phi, colour = as.factor(id)),
+             alpha = 1.5, size = 5, pch = 4, stroke = 2) +
+  theme(legend.position = "none")
+
+
+
+
+
+# Fit the 2006 ARD Model --------------------------------------------------
+
+## to do this need to specify a strong prior for the beta terms
+## in this model
+## need to figure out how to do this, incorporating the known 
+## truth about their propensity in the network
+
+### eliminate the zero variance responses ###
+
+var0 <- apply(y_sim, 1, var)
+(var0 <- which(var0 == 0))
+if (length(var0) > 0) {
+  y_sim <- y_sim[-var0,]
+  samp_degree_2006 <- samp_degree[-var0]
+  I <- nrow(y_sim)
+}
+
+
+
+## need prior for the beta_k's here
+## estimate it as
+## this model doesn't account for the distance 
+mu_beta <- log(apply(y_sim, 2, sum)/sum(samp_degree))
+# mu_beta <- subpop_greg_means
+sd_beta <- rep(subpop_greg_sd, length(mu_beta))  
+## take this as true sd of greg
+## getting poor convergence here so may need to modify this
+
+stan_data_simple <- list(N = nrow(y_sim),
+                         K = ncol(y_sim),
+                         y = y_sim,
+                         mu_beta = mu_beta,
+                         sigma_beta = sd_beta)
+
+
+stan_file_simple <- here("Summer_2024", "zheng_et_al_2006.stan")
+
+mod_simple <- cmdstan_model(stan_file_simple)
+
+stan_fit_simple <- mod_simple$sample(data = stan_data_simple,
+                                     seed = 123,
+                                     chains = 4,
+                                     iter_sampling = 1000,
+                                     iter_warmup = 1000,
+                                     parallel_chains = 4,
+                                     refresh = 100)
+
+
+stan_fit_simple$summary(variables = c("mu_alpha", "sigma_alpha", "beta"))
+mcmc_trace(stan_fit_simple$draws(variables = c("mu_alpha",
+                                               "sigma_alpha",
+                                               "beta")))
+
+## maybe it makes sense that this can't converge for this problem,
+## model not flexible enough here...
+## or the zero values are messing it up
+
+
+## Plot histogram of estimated degree a_i = exp(alpha_i)
+## and compare it to the true known degrees for this sample
+
+est_degrees <- stan_fit_simple$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("alpha")) |> 
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("alpha"),
+               names_to = "node",
+               values_to = "est") |> 
+  mutate(degree = exp(est),
+         node = parse_number(node)) 
+
+
+true_degrees <- tibble(node = 1:nrow(y_sim),
+                       true_degree = samp_degree_2006)
+
+true_degrees |> 
+  ggplot(aes(true_degree)) +
+  geom_histogram() +
+  labs(title = "True Degree Distribution")
+
+est_degrees |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  labs(x = "Expected Degree", title = "Posterior Estimates",
+       subtitle = "2006 Model", y = "") 
+## plot the ppc for this in terms of the proportion of y_{ik}=l 
+## for different values of l
+
+
+## construct data to be used for the ppc plot below
+
+ppc_input <- construct_ppc(stan_fit_simple, y_sim)
+
+
+ppc_fit1 <- plot_ests(ppc_input$ppc_draws, ppc_input$y_tibble, prop_val = 4)
+ppc_fit1 + 
+  labs(title = "Zheng et al, 2006") 
+
+## note that when we do this with 0, no simulated y entries = 0 which messes
+## up the plot a bit
+
+
+
+# Fit the 2010 Mixing Model -----------------------------------------------
+
+
+## to fit this model need to specify ego and alter groups 
+## in both the nodes in ard sample and also in the ard subpopulations
+## also need to specify beta, which corresponds to proportions
+## of the alter groups in a subpop
+
+num_egos <- 6
+num_alters <- 6
+
+## as we don't have ego alter mixing structure seems we should just
+## simulate this somehow here based on assigned subpopulations maybe
+
+
+## assign egos randomly
+
+sample_egos <- sample(1:num_egos, size = n_sample, replace = TRUE)
+
+
+## create random alter centers and construct beta based on distance between
+## these and the subpop centers (such that they are reasonably small)
+## then that's all i need
+
+alter_centers <- r_vMF(n = num_alters, mu = c(1, 1, 1), kappa = 0.05)
+
+
+beta_sim <- matrix(NA,
+                   nrow = num_alters,
+                   ncol = n_subpop)
+
+lambda_alter <- 5
+## make this large enough so that prob sub smallish
+
+for(i in 1:num_alters){
+  ###
+  curr_alter <- alter_centers[i, ]
+  dot_prod <- subpop_centers %*% curr_alter
+  dist <- acos(dot_prod)
+  ## these distances between 0 and 2pi
+  prob_sub <- exp(- lambda_alter * dist)
+  beta_sim[i, ] <- prob_sub
+}
+
+
+mix_data_stan <- list(E = num_egos,
+                      A = num_alters,
+                      K = ncol(y_sim),
+                      N = nrow(y_sim),
+                      y = y_sim,
+                      ego = sample_egos,
+                      Beta = beta_sim,
+                      theta_d = c(6.2, .5),
+                      theta_o = c(3, 2),
+                      alpha = rep(1, num_alters)/num_alters,
+                      p = 1)
+
+
+degree_mix_mod <- cmdstan_model(stan_file = here("Summer_2024",
+                                                 "mccormick_et_al_2010.stan"))
+
+fit2 <- degree_mix_mod$sample(data = mix_data_stan,
+                              iter_warmup = 500,
+                              iter_sampling = 500)
+
+
+## then do model checking and ppc for this also
+
+fit2$summary(variables = c("M", "omega"))
+
+
+## plot the estimated degree distributions from this
+
+fit2$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("log_d")) |> 
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("log_d"),
+               names_to = "node",
+               values_to = "log_estimate") |> 
+  mutate(node = parse_number(node)) |> 
+  mutate(est_degree = exp(log_estimate)) |> 
+  ggplot(aes(est_degree)) +
+  geom_histogram() +
+  labs(title = "Posterior Estimates",
+       subtitle = "2010 Model")
+
+
+## compare to true distribution, seems to over estimate
+true_degrees |> 
+  ggplot(aes(true_degree)) +
+  geom_histogram() +
+  labs(title = "True Degree Distribution")
+
+
+
+## then do ppc for this model also
+
+ppc_input_2010 <- construct_ppc(fit2, y_sim)
+
+
+ppc_fit2 <- plot_ests(ppc_input_2010$ppc_draws,
+                      ppc_input_2010$y_tibble,
+                      prop_val = 5)
+ppc_fit2 + 
+  labs(title = "McCormick et al, 2006") 
+
+
+
+
+# Fit the 2019 Model ------------------------------------------------------
+
+
+
 
 
 # Fit the Latent ARD Model ------------------------------------------------
@@ -125,7 +424,7 @@ dim(y_sim)
 
 ls.dim <- 3
 n <- dim(y_sim)[1]
-n.iter <- 300#3000
+n.iter <- 3000#3000
 n.thin <- 10
 m.iter <- 3
 total.prop <- 0.25
@@ -140,18 +439,30 @@ z.pos.init <- generateRandomInitial(n, ls.dim)
 out <- f.metro(y_sim,
                total.prop = total.prop,
                n.iter = n.iter,
-               # m.iter = m.iter,
-               # n.thin = n.thin,
+               m.iter = m.iter,
+               n.thin = n.thin,
                z.pos.init = z.pos.init,
                muk.fix = muk.fix,
                ls.dim = ls.dim)
 
 posterior <- getPosterior(out, n.iter, m.iter, n.thin, n)
 est.degrees <- posterior$est.degrees
-est.eta <- posterior$est.eta
+est.eta <- posterior$est.eta ## think this corresponds to the gamma in sim above
 est.latent.pos <- posterior$est.latent.pos
 est.gi <- getGi(est.degrees, est.eta)
 
 
 hist(est.gi) ## these seems similar to hist(est_greg)
+hist(samp_greg)
+hist(est.eta)
+
 ## need to check it some more to be sure...
+
+
+## what exactly do these correspond to here in terms of what we 
+## want to use them for?
+dim(est.latent.pos)
+dim(est.degrees)
+
+
+hist(as.vector(exp(apply(est.degrees, 2, mean))) - samp_degree)

@@ -6,7 +6,7 @@
 
 
 
-# Some Latent Space Simulation Code --------------------------------------------------
+# Some Latent Space Simulation Code 2009 --------------------------------------------------
 
 ## code taken from Tian's Dropbox, 
 ## Project_LatentMix/prgm/simulations/fake_generation.R
@@ -88,6 +88,8 @@ for (i in 1:sub_k) {
                                       (1 + exp(-lamda * dist_sample_sample)))) /
     n_sample * n_popu
   
+  ## this seems to be used to assign nodes to the sample from
+  ## that subpopulation, but not clear
   prob_sub_sample <- diag(x_sample_degree / est_degree_sample) %*% 
     (exp(-lamda * dist_sub_sample) / (1 + exp(-lamda * dist_sub_sample))) * 2
   
@@ -112,4 +114,139 @@ y_sim <- fake_data
 
 
 
+# Simulate Data Corresponding to the Spherical Model ----------------------
 
+library(rotasym)
+
+n_pop <- 1000000
+perc_subpopu <- 0.001
+n_subpopu <- round(n_popu * perc_subpopu)
+n_sample <- 1000
+num_subpop <- 10
+
+
+## first need to simulate the subpopulation locations on the sphere
+
+
+
+## then assign nodes to subpopulations based on distance to subpopulations
+
+
+
+
+# Fit the Latent ARD Model ------------------------------------------------
+
+
+
+source("Summer_2024/latent_surface_model.R")
+source("Summer_2024/fit_latent.R")
+
+n <- 1000
+K <- 15
+
+dim(y_sim)
+
+
+## need to figure out how to fit the latent surface model using all of this
+
+ls.dim <- 3
+n <- dim(y_sim)[1]
+n.iter <- 3000
+n.thin <- 10
+m.iter <- 3
+total.prop <- 0.25
+
+## taking this from the github
+muk.fix.ind <- sample(1:8, size = 4, replace = F)
+muk.fix <- matrix(runif(12), nrow = 4, ncol = 3)
+muk.fix <- sweep(muk.fix, MARGIN = 1, 1 / sqrt(rowSums(muk.fix^2)), `*`)
+
+
+z.pos.init <- generateRandomInitial(n, ls.dim)
+out <- f.metro(y_sim,
+               total.prop = total.prop,
+               # n.iter = n.iter,
+               # m.iter = m.iter,
+               # n.thin = n.thin,
+               z.pos.init = z.pos.init,
+               muk.fix = muk.fix,
+               ls.dim = ls.dim)
+
+posterior <- getPosterior(out, n.iter, m.iter, n.thin, n)
+est.degrees <- posterior$est.degrees
+est.eta <- posterior$est.eta
+est.latent.pos <- posterior$est.latent.pos
+est.gi <- getGi(est.degrees, est.eta)
+
+
+
+
+# Compare results ---------------------------------------------------------
+
+
+## think I should maybe be using x_sample_degree here, not sure
+
+## compare the true to mean degrees here
+
+## y is how many people they know in the entire population from that subpop
+## but not clear what the degree estimates should then correspond to
+
+true_degrees <- apply(y_sim, 1, sum)
+
+deg_hat <- apply(est.degrees, 2, mean)
+deg_lower <- apply(est.degrees, 2, quantile, p = .025)
+deg_upper <- apply(est.degrees, 2, quantile, p = .975)
+
+
+
+
+x_sample_degree * perc_subpopu
+
+true_degrees[1:20]
+
+as.numeric(deg_hat)[1:10] 
+
+
+summary(deg_hat - true_degrees)
+
+
+tibble(true = true_degrees,
+       est = deg_hat) |> 
+  filter(true == 10) |> 
+  ggplot(aes(est)) +
+  geom_histogram()
+
+## some clear pattern of underestimation, which makes me think 
+## I need to be scaling these somehow
+
+
+### need to make this a bit tidier
+
+plot(true_degrees, 
+     deg_hat * 10)
+abline(a = 0, b = 1, col = "red")
+
+
+for (i in 1:n) lines(c(true_degrees[i], true_degrees[i]),
+                     c(deg_lower[i], deg_upper[i]),
+                     col = "grey")
+
+points(true_degrees, deg_hat, pch = 16)
+
+
+
+sorted_order <- order(true_degrees)
+
+sorted_degree <- true_degrees[sorted_order]
+
+sorted_hat <- deg_hat[sorted_order]
+sorted_lower <- deg_lower[sorted_order]
+sorted_upper <- deg_upper[sorted_order]
+
+plot(sorted_degree, 
+     sorted_hat)
+for (i in 1:n) lines(c(sorted_deg[i], sorted_deg[i]),
+                     c(sorted_lower[i], sorted_upper[i]),
+                     col = "grey")
+
+points(sorted_degree, sorted_hat, pch = 16)

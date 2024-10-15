@@ -59,7 +59,7 @@ model {
 
 
 generated quantities {
-  array[N] int out_degree;
+  array[N] int y_sum;
   array[N, K] int y_sim;
   for (n in 1:N) {
     for (k in 1:K) {
@@ -69,7 +69,7 @@ generated quantities {
         y_sim[n,k] = neg_binomial_rng(mu_ik, omega[k]);
       }
     }
-    out_degree[n] = sum( y_sim[n] );
+    y_sum[n] = sum( y_sim[n] );
   }
   
 }
