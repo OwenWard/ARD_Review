@@ -58,3 +58,50 @@ getGi <- function(est.degrees, est.eta) {
   }
   return(log(gi.m))
 }
+
+
+
+get_all_post <- function(out, n.iter, m.iter, n.thin, n, k) {
+  est.degrees <- NULL
+  est.eta <- NULL
+  est.beta <- NULL
+  est.latent.pos <- NULL
+  est.mu.k <- NULL
+  est.eta.k <- NULL
+  for (n.ind in (n.iter / n.thin / 2 + 1):(n.iter / n.thin)) {
+    for (m.ind in 1:m.iter) {
+      est.degrees <- rbind(est.degrees, out$sims[n.ind, m.ind, 1:n])
+      est.eta <- c(est.eta, out$sims[n.ind, m.ind, ][length(out$sims[n.ind, m.ind, ])])
+      est.latent.pos <- rbind(est.latent.pos, c(out$sims.latent[n.ind, m.ind, 1:n, ]))
+      est.mu.k <- rbind(est.mu.k, c(out$sims.latent[n.ind, m.ind, (n+1):(n+k), ]))
+      est.beta <- rbind(est.beta, out$sims[n.ind, m.ind, (n+1):(n + k)])
+      est.eta.k <- rbind(est.eta.k, out$sims[n.ind, m.ind,
+                                             (n + k + 5):(n + k + 4 + k)])
+    }
+  }
+  return(list(est.degrees = est.degrees,
+              est.eta = est.eta, 
+              eta.eta.k = est.eta.k,
+              est.latent.pos = est.latent.pos,
+              est.mu.k = est.mu.k,
+              est.beta = est.beta))
+}
+
+
+cp_fcn <- function(kap, p = 3) {
+  # Pre-allocate the result vector
+  out <- numeric(length(kap))
+  
+  # Handle the case where kap == 0
+  zero_kap <- kap == 0
+  out[zero_kap] <- gamma(p / 2) / (2 * pi^(p / 2))
+  
+  # Handle the case where kap != 0
+  non_zero_kap <- kap != 0
+  out[non_zero_kap] <- (kap[non_zero_kap]^((p / 2) - 1)) / 
+    ((2 * pi)^(p / 2) * besselI(kap[non_zero_kap], (p / 2) - 1))
+  
+  return(out)
+}
+
+

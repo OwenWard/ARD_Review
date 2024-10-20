@@ -19,21 +19,23 @@ plot_ests <- function(ppc_y, true_y, prop_val = 0) {
     group_by(sub_pop_id) |> 
     summarise(true_prop = sum(count == prop_val)/n()) 
   
-  max_prop <- min(1, max(true_prop$true_prop) + 0.075)
+  ## need to set this value in a better way I think
+  max_prop <- min(1, max(true_prop$true_prop) + 0.15)
   
   final_plot <- ppc_prop |> 
     left_join(true_prop) |> 
     arrange(true_prop) |> 
     mutate(index = row_number()) |> 
-    ggplot(aes(x = true_prop, y = avg)) +
+    ggplot(aes(y = true_prop, x = avg)) +
     geom_point() +
-    geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.001, alpha = 0.5) +
-    coord_flip() + 
+    geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.005, alpha = 0.5) +
     geom_abline(slope = 1, intercept = 0, alpha = 0.25, col = "red") +
     labs(x = "Simulated", y = "Data",
          subtitle = paste0("Prop = ", prop_val)) +
-    xlim(c(-0.05, max_prop)) +
-    ylim(c(-0.05, max_prop)) +
+    # xlim(c(-0.05, max_prop)) +
+    # ylim(c(-0.05, max_prop)) +
+    # coord_flip() +
+    coord_obs_pred() +
     NULL
   
   final_plot
