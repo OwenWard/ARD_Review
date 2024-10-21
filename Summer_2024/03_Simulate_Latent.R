@@ -326,7 +326,7 @@ mcmc_trace(stan_fit_2006$draws(variables = c("mu_alpha",
 ## Plot histogram of estimated degree a_i = exp(alpha_i)
 ## and compare it to the true known degrees for this sample
 
-est_degrees_2006 <- stan_fit_simple$draws() |> 
+est_degrees_2006 <- stan_fit_2006$draws() |> 
   as_draws_df() |> 
   dplyr::select(starts_with("alpha")) |> 
   mutate(draw = row_number()) |> 
@@ -345,7 +345,7 @@ true_degrees |>
   geom_histogram() +
   labs(title = "True Degree Distribution")
 
-est_degrees |> 
+est_degrees_2006 |> 
   ggplot(aes(degree)) +
   geom_histogram() +
   labs(x = "Expected Degree", title = "Posterior Estimates",
