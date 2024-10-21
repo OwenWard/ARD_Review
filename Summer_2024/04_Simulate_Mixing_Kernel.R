@@ -91,7 +91,7 @@ est_degrees_null_01 <- stan_fit_null_01$draws() |>
 
 
 true_degrees <- tibble(node = 1:nrow(y_sim),
-                       true_degree = samp_degree)
+                       true_degree = true_degree)
 
 true_degrees |> 
   ggplot(aes(true_degree)) +
@@ -299,7 +299,7 @@ ppc_2010 <- construct_ppc(stan_fit_2010, y_sim)
 
 ppc_fit_2010 <- plot_ests(ppc_2010$ppc_draws,
                           ppc_2010$y_tibble,
-                          prop_val = 3)
+                          prop_val = 5)
 ppc_fit_2010 + 
   labs(title = "McCormick et al, 2010") 
 
@@ -310,3 +310,21 @@ ppc_fit_2010 +
 
 ## just need to figure out how to adjust the kernel to use for this
 ## where we don't have to assume the subpops are names
+
+
+
+stan_file_2019 <- here("Summer_2024", "sahai_et_al_2019.stan")
+
+mod_2019 <- cmdstan_model(stan_file_2019)
+
+stan_fit_2019 <- mod_2019$sample(data = ,
+                                 seed = 123,
+                                 chains = 4,
+                                 iter_sampling = 1000,
+                                 iter_warmup = 1000,
+                                 parallel_chains = 4,
+                                 refresh = 100)
+
+
+# source(paste0(code_path, "src/load_data/compile_models.R"))
+# source(paste0(code_path, "src/fit/kernel_spline_name.R"))
