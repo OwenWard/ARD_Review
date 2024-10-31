@@ -22,13 +22,16 @@ library(cmdstanr)
 library(here)
 library(bayesplot)
 library(posterior)
+library(grid)
+library(gridExtra)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 
 source(here("Summer_2024/", "helper_model_checking.R"))
 source(here("Summer_2024/", "helper_latent_surface_model.R"))
 source(here("Summer_2024/", "helper_functions_latent_ard.R"))
-
+source(here("Summer_2024/", "helper_plots.R"))
+set.seed(100)
 # Simulate the Positions and Overall Network -----------------------------------
 
 n_population <- 1e5
@@ -161,6 +164,8 @@ colnames(latent_positions) <- c("x", "y", "z")
 
 plot_subpops <- as_tibble(latent_positions) |> 
   mutate(subpop = sub_pop_id) |> 
+  # mutate(node = row_number()) |>  ## these lines to only show 
+  # filter(node %in% sample_ids) |> ## nodes in ard sample
   drop_na() |> 
   mutate(theta = atan2(y, x),
          theta = ifelse(theta < 0, theta + 2 * pi, theta),
@@ -172,15 +177,23 @@ plot_subpops <- as_tibble(latent_positions) |>
              mapping = aes(theta, phi, colour = as.factor(id)),
              alpha = 1.5, size = 5, pch = 4, stroke = 2) +
   theme(legend.position = "none") +
-  labs(title = "Positions of Subpopulations in Projected Space",
-       x = expression(theta), y = expression(phi)) +
+  labs(x = expression(theta), y = expression(phi)) +
   scale_x_continuous(breaks = c(pi, 2*pi), 
+                     limits = c(0, 2*pi),
+                     expand = c(0, 0.1),
                      labels = c(expression(pi), expression(2 * pi))) +
-  scale_y_continuous(breaks = c(pi/2, pi), 
-                     labels = c(expression(pi/2), expression(pi)))
+  scale_y_continuous(breaks = c(pi/2, pi),
+                     expand = c(0, 0.1),
+                     labels = c(expression(pi/2), expression(pi))) +
+  theme_single_y()
 
 plot_subpops
 
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_subpop_pos.png"),
+       plot = plot_subpops,
+       dpi = 600,
+       height = 5, width = 7)
 
 
 # Fit Simple Null Models --------------------------------------------------
@@ -214,24 +227,29 @@ stan_fit_null_01$draws() |>
   ggplot(aes(degree)) +
   geom_histogram()
 
-
 ## look at simple ppc
 ppc_null_1 <- construct_ppc(stan_fit_null_01, y_sim)
 
 ppc_fit_null_1 <- plot_ests(ppc_null_1$ppc_draws, 
                             ppc_null_1$y_tibble,
                             prop_val = 1)
-ppc_fit_null_1 + 
-  labs(title = "Null Erdos Renyi Model") 
 
+ppc_1_null_1 <- ppc_fit_null_1 + 
+  labs(title = expression("Proportion of " * y[ik] == 1),
+       subtitle = "") +
+  theme_single()
+  
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_null_1.png"),
+       plot = ppc_1_null_1,
+       dpi = 600,
+       height = 5, width = 7)
 
 
 ## Fit the second null model, allowing varying degrees
 
 stan_file_null_02 <- here("Summer_2024/", "null_model_02.stan")
-
 mod_null_02 <- cmdstan_model(stan_file_null_02)
-
 stan_fit_null_02 <- mod_null_02$sample(data = stan_data_null,
                                        seed = 123,
                                        chains = 4,
@@ -239,7 +257,6 @@ stan_fit_null_02 <- mod_null_02$sample(data = stan_data_null,
                                        iter_warmup = 1000,
                                        parallel_chains = 4,
                                        refresh = 100)
-
 
 stan_fit_null_02$summary(variables = c("beta", "log_d[1]", "log_d[2]"))
 
@@ -257,14 +274,72 @@ stan_fit_null_02$draws() |>
   labs(title = "Estimated Degree Distribution",
        subtitle = "Null Model, varying Degrees")
 
-
 ppc_null_2 <- construct_ppc(stan_fit_null_02, y_sim)
 
 ppc_fit_null_2 <- plot_ests(ppc_null_2$ppc_draws, 
                             ppc_null_2$y_tibble,
                             prop_val = 1)
-ppc_fit_null_2 + 
-  labs(title = "Null Model, varying Degrees") 
+
+ppc_1_null_2 <- ppc_fit_null_2 +
+  labs(title = expression("Proportion of " * y[ik] == 1),
+     subtitle = "") +
+  theme_single()
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_null_2.png"),
+       plot = ppc_1_null_2,
+       dpi = 600,
+       height = 5, width = 7)
+
+
+## show the estimated degree from null models and compare to true distribution
+null_1_deg <- stan_fit_null_01$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("log_d")) |> 
+  mutate(draw = row_number())  |> 
+  mutate(degree = exp(log_d)) |> 
+  select(draw, degree) |> 
+  mutate(model = "Null Model 1")
+
+null_2_deg <- stan_fit_null_02$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("log_d")) |> 
+  mutate(draw = row_number())  |> 
+  pivot_longer(cols = starts_with("log_d"),
+               names_to = "node", 
+               values_to = "log_d") |> 
+  mutate(degree = exp(log_d),
+         node_id = parse_number(node)) |> 
+  select(draw, degree) |> 
+  mutate(model = "Null Model 2")
+
+true_deg <- tibble(draw = 1,
+                   degree = samp_degree) |> 
+  mutate(model = "True Degree")
+
+
+null_deg_plot <- bind_rows(null_1_deg,
+          null_2_deg,
+          true_deg) |> 
+  ggplot(aes(x = degree, color = model)) +
+  # geom_density(size = 1, key_glyph = "path") +
+  stat_density(aes(y = ..scaled..), geom = "line",
+               key_glyph = "path",
+               position = "identity") +
+  guides(color = guide_legend(override.aes = list(fill = NA)),
+         override.aes = list(linetype = 1, size = 1)) +
+  labs(color = "", x = "Degree", y = "") +
+  scale_x_continuous(expand = c(0, 5),
+                     limits = c(0, 750)) +
+  theme_single_legend() 
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_null_deg.png"),
+       plot = null_deg_plot,
+       dpi = 600,
+       height = 5, width = 7)
+
+
 
 # Fit the 2006 ARD Model --------------------------------------------------
 
@@ -340,19 +415,54 @@ est_degrees_2006 <- stan_fit_2006$draws() |>
 true_degrees <- tibble(node = 1:nrow(y_sim),
                        true_degree = samp_degree)
 
-true_degrees |> 
+deg_plot <- true_degrees |> 
   ggplot(aes(true_degree)) +
   geom_histogram() +
-  labs(title = "True Degree Distribution")
+  # labs(title = "True Degree Distribution") +
+  labs(x = "Node Degree", y = "") +
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank()) +
+  theme_single()
 
-est_degrees_2006 |> 
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_node_degree.png"),
+       plot = deg_plot,
+       dpi = 600,
+       height = 5, width = 7)  
+
+deg_plot_2006 <- est_degrees_2006 |> 
   ggplot(aes(degree)) +
   geom_histogram() +
-  labs(x = "Expected Degree", title = "Posterior Estimates",
-       subtitle = "2006 Model", y = "") 
-## plot the ppc for this in terms of the proportion of y_{ik}=l 
-## for different values of l
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank()) +
+  theme_single() +
+  labs(x = "Posterior Degree", y = "")
 
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_node_06_degree.png"),
+       plot = deg_plot_2006,
+       dpi = 600,
+       height = 5, width = 7) 
+
+
+comb_deg_plot <- est_degrees_2006 |> 
+  select(node, degree) |> 
+  mutate(model = "Zheng et al, 2006") |> 
+  bind_rows(true_degrees |> 
+              rename(degree = true_degree) |> 
+              mutate(model = "True Degree")) |> 
+  ggplot(aes(x = degree, color = model)) +
+  geom_density(size = 1) +
+  guides(color = guide_legend(override.aes = list(fill = NA)),
+         override.aes = list(linetype = 1, size = 1)) +
+  labs(color = "", x = "Degree", y = "") +
+  theme_single_legend()
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_node_06_degree_true.png"),
+       plot = comb_deg_plot,
+       dpi = 600,
+       height = 5, width = 7) 
 
 ## construct data to be used for the ppc plot below
 
@@ -361,8 +471,19 @@ ppc_2006 <- construct_ppc(stan_fit_2006, y_sim)
 ppc_fit_2006 <- plot_ests(ppc_2006$ppc_draws,
                           ppc_2006$y_tibble,
                           prop_val = 1)
-ppc_fit_2006 + 
-  labs(title = "Zheng et al, 2006") 
+# ppc_fit_2006 + 
+#   labs(title = "Zheng et al, 2006") 
+
+ppc_1_2006 <- ppc_fit_2006 +
+  labs(title = expression("Proportion of " * y[ik] == 1),
+       subtitle = "") +
+  theme_single()
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_2006.png"),
+       plot = ppc_1_2006,
+       dpi = 600,
+       height = 5, width = 7)
 
 ## note that when we do this with 0, no simulated y entries = 0 which messes
 ## up the plot a bit
@@ -533,6 +654,36 @@ summary(est_degrees_2015$degree)
 summary(true_degrees$true_degree)
 
 
+## TO DO - add the degree estimates here also
+comb_deg_plot_3 <- est_degrees_2006 |> 
+  select(node, degree) |> 
+  mutate(model = "Zheng et al, 2006") |> 
+  bind_rows(true_degrees |> 
+              rename(degree = true_degree) |> 
+              mutate(model = "True Degree")) |> 
+  bind_rows(est_degrees_2015 |> 
+              mutate(node = parse_number(node)) |> 
+              select(node, degree) |> 
+              mutate(model = "McCormick et al, 2015")) |> 
+  mutate(model = factor(model, 
+                        levels = c("True Degree", "Zheng et al, 2006",
+                                   "McCormick et al, 2015"))) |> 
+  ggplot(aes(x = degree, color = model)) +
+  geom_density(size = 1, key_glyph = "path") +
+  guides(color = guide_legend(override.aes = list(fill = NA)),
+         override.aes = list(linetype = 1, size = 1)) +
+  labs(color = "", x = "Degree", y = "") +
+  scale_x_continuous(expand = c(0, 5)) +
+  theme_single_legend()
+
+comb_deg_plot_3
+## then save this
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_node_06_15_degree_true.png"),
+       plot = comb_deg_plot_3,
+       dpi = 600,
+       height = 5, width = 7) 
+
 ## then simulate the y_ik entries using the draws
 
 all_post <- get_all_post(out, n.iter, m.iter, n.thin, n, k)
@@ -591,8 +742,262 @@ ard_ppc_draws <- tibble_df |>
 
 ## then do the ppc with this data
 ppc_fit_2015 <- plot_ests(ard_ppc_draws,
-                          ppc_2010$y_tibble,
+                          ppc_2006$y_tibble,
                           prop_val = 1)
 
 ppc_fit_2015 + 
   labs(title = "McCormick et al, 2015")
+
+
+ppc_1_2015 <- ppc_fit_2015 +
+  labs(title = expression("Proportion of " * y[ik] == 1),
+       subtitle = "") +
+  theme_single()
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_2015.png"),
+       plot = ppc_1_2015,
+       dpi = 600,
+       height = 5, width = 7)
+
+
+
+# Compute R hat for 2015 model --------------------------------------------
+
+## compute for a range of parameters
+num_pars <- 1035
+par_rhat <- rep(NA, num_pars)
+
+for(i in 1:num_pars){
+  draws <- out$sims[ , , i]
+  par_rhat[i] <- rhat(draws)
+}
+
+summary(par_rhat)
+
+# Create Grid of PPC Fits -------------------------------------------------
+
+## first do this for null model 1
+
+ppc_fit_null_1_0 <- plot_ests(ppc_null_1$ppc_draws, 
+                            ppc_null_1$y_tibble,
+                            prop_val = 0)
+
+ppc_0_null_1 <- ppc_fit_null_1_0 +
+  labs(title = expression(Pr(y[ik] == 0)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_null_1_1 <- plot_ests(ppc_null_1$ppc_draws, 
+                              ppc_null_1$y_tibble,
+                              prop_val = 1)
+
+ppc_1_null_1 <- ppc_fit_null_1_1 +
+  labs(title = expression(Pr(y[ik] == 1)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_null_1_3 <- plot_ests(ppc_null_1$ppc_draws, 
+                              ppc_null_1$y_tibble,
+                              prop_val = 3)
+
+ppc_3_null_1 <- ppc_fit_null_1_3 +
+  labs(title = expression(Pr(y[ik] == 3)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+
+ppc_fit_null_1_5 <- plot_ests(ppc_null_1$ppc_draws, 
+                              ppc_null_1$y_tibble,
+                              prop_val = 5)
+
+ppc_5_null_1 <- ppc_fit_null_1_5 +
+  labs(title = expression(Pr(y[ik] == 5)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+x_label <- textGrob("Simulated",
+                    gp = gpar(fontsize = 16))
+y_label <- textGrob("Data",
+                    rot = 90, gp = gpar(fontsize = 16))
+
+grid_plot <- grid.arrange(
+  arrangeGrob(
+    y_label,                # Left y-axis label
+    arrangeGrob(ppc_0_null_1, ppc_1_null_1,
+                ppc_3_null_1, ppc_5_null_1, nrow = 1, ncol = 4), # Plots in a 2x2 grid
+    ncol = 2,
+    widths = unit.c(grobWidth(y_label) + unit(0.5, "line"),
+                    unit(0.95, "npc") - grobWidth(y_label))
+  ),
+  x_label,                  # Bottom x-axis label
+  nrow = 2,
+  heights = unit.c(unit(0.65, "npc") - 
+                     grobHeight(x_label),
+                   grobHeight(x_label) - unit(0.5, "line"))
+)
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_all_null_1.png"),
+       plot = grid_plot,
+       dpi = 600,
+       height = 5, width = 7)
+
+
+
+## for 2006 model
+
+ppc_fit_2006_0 <- plot_ests(ppc_2006$ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 0)
+
+ppc_0_2006 <- ppc_fit_2006_0 +
+  labs(title = expression(Pr(y[ik] == 0)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2006_1 <- plot_ests(ppc_2006$ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 1)
+
+ppc_1_2006 <- ppc_fit_2006_1 +
+  labs(title = expression(Pr(y[ik] == 1)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2006_3 <- plot_ests(ppc_2006$ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 3)
+
+ppc_3_2006 <- ppc_fit_2006_3 +
+  labs(title = expression(Pr(y[ik] == 3)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2006_5 <- plot_ests(ppc_2006$ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 5)
+
+ppc_5_2006 <- ppc_fit_2006_5 +
+  labs(title = expression(Pr(y[ik] == 5)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+
+x_label <- textGrob("Simulated",
+                    gp = gpar(fontsize = 16))
+y_label <- textGrob("Data",
+                    rot = 90, gp = gpar(fontsize = 16))
+
+grid_plot <- grid.arrange(
+  arrangeGrob(
+    y_label,                # Left y-axis label
+    arrangeGrob(ppc_0_2006, ppc_1_2006,
+                ppc_3_2006, ppc_5_2006, nrow = 1, ncol = 4), # Plots in a 2x2 grid
+    ncol = 2,
+    widths = unit.c(grobWidth(y_label) + unit(0.5, "line"),
+                    unit(0.95, "npc") - grobWidth(y_label))
+  ),
+  x_label,                  # Bottom x-axis label
+  nrow = 2,
+  heights = unit.c(unit(0.65, "npc") - 
+                     grobHeight(x_label),
+                   grobHeight(x_label) - unit(0.5, "line"))
+)
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_all_2006.png"),
+       plot = grid_plot,
+       dpi = 600,
+       height = 5, width = 7)
+
+
+## repeat for 2015
+
+ppc_fit_2015_0 <- plot_ests(ard_ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 0)
+
+ppc_0_2015 <- ppc_fit_2015_0 +
+  labs(title = expression(Pr(y[ik] == 0)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2015_1 <- plot_ests(ard_ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 1)
+
+ppc_1_2015 <- ppc_fit_2015_1 +
+  labs(title = expression(Pr(y[ik] == 1)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2015_3 <- plot_ests(ard_ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 3)
+
+ppc_3_2015 <- ppc_fit_2015_3 +
+  labs(title = expression(Pr(y[ik] == 3)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2015_5 <- plot_ests(ard_ppc_draws,
+                            ppc_2006$y_tibble,
+                            prop_val = 5)
+
+ppc_5_2015 <- ppc_fit_2015_5 +
+  labs(title = expression(Pr(y[ik] == 5)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+
+x_label <- textGrob("Simulated",
+                    gp = gpar(fontsize = 16))
+y_label <- textGrob("Data",
+                    rot = 90, gp = gpar(fontsize = 16))
+
+grid_plot <- grid.arrange(
+  arrangeGrob(
+    y_label,                # Left y-axis label
+    arrangeGrob(ppc_0_2015, ppc_1_2015,
+                ppc_3_2015, ppc_5_2015, nrow = 1, ncol = 4), # Plots in a 2x2 grid
+    ncol = 2,
+    widths = unit.c(grobWidth(y_label) + unit(0.5, "line"),
+                    unit(0.95, "npc") - grobWidth(y_label))
+  ),
+  x_label,                  # Bottom x-axis label
+  nrow = 2,
+  heights = unit.c(unit(0.65, "npc") - 
+                     grobHeight(x_label),
+                   grobHeight(x_label) - unit(0.5, "line"))
+)
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "latent_ppc_all_2015.png"),
+       plot = grid_plot,
+       dpi = 600,
+       height = 5, width = 7)

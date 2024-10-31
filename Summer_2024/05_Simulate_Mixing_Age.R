@@ -11,10 +11,13 @@ library(scales)
 library(gtools)
 library(rstan)
 library(tidymodels)
+library(gridExtra)
+library(grid)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 source(here("Summer_2024/", "helper_model_checking.R"))
-
+source(here("Summer_2024/", "helper_plots.R"))
+set.seed(100)
 # Simulate with Age information also --------------------------------------
 
 data <- read_csv(here("Summer_2024/", "sim_pars", "omni.csv"))
@@ -226,7 +229,8 @@ stan_fit_2019 <- mod_2019$sample(data = stan_data_2019,
                                  refresh = 100)
 
 stan_fit_2019$summary(variables = c("log_d[1]", "log_d[2]",
-                                    "log_d[100]", "y_sim[1,2]"))
+                                    "log_d[100]", "inv_omega", 
+                                    "rho", "beta"))
 
 ## then compare the estimated degrees and the ppc for this also
 
@@ -252,6 +256,35 @@ true_degrees |>
   labs(title = "True Degree Distribution")
 
 
+## plot combined degree distribution from each of these models
+
+comb_deg_plot <- est_degrees_2010 |> 
+  select(node, degree = est_degree) |> 
+  mutate(model = "McCormick et al. 2010") |> 
+  bind_rows(est_degrees_2019 |> select(node, degree = est_degree) |> 
+              mutate(model = "Sahai et al. 2019")) |> 
+  bind_rows(true_degrees |> 
+              select(node, degree = true_degree) |> 
+              mutate(model = "True Degree")) |> 
+    mutate(model = factor(model, 
+                          levels = c("True Degree",
+                                     "McCormick et al. 2010",
+                                     "Sahai et al. 2019"))) |> 
+    ggplot(aes(x = degree, color = model)) +
+    geom_density(size = 1, key_glyph = "path") +
+    guides(color = guide_legend(override.aes = list(fill = NA)),
+           override.aes = list(linetype = 1, size = 1)) +
+    labs(color = "", x = "Degree", y = "") +
+    scale_x_continuous(expand = c(0, 100), limits = c(0, 5000)) +
+    theme_single_legend()
+
+comb_deg_plot
+ggsave(filename = here("Summer_2024", "figures",
+                       "mix_2_node_10_19_degree_true.png"),
+       plot = comb_deg_plot,
+       dpi = 600,
+       height = 5, width = 7) 
+
 ## then do the ppc down here
 
 ppc_2019 <- construct_ppc(stan_fit_2019, y_sim)
@@ -262,3 +295,153 @@ ppc_fit_2019 <- plot_ests(ppc_2010$ppc_draws,
 ppc_fit_2019 + 
   labs(title = "Sahai et al, 2019") 
 
+
+
+# Construct the block of PPC Plots ----------------------------------------
+
+ppc_fit_2010_0 <- plot_ests(ppc_2010$ppc_draws,
+                            ppc_2010$y_tibble,
+                            prop_val = 0)
+
+ppc_0_2010 <- ppc_fit_2010_0 +
+  labs(title = expression(Pr(y[ik] == 0)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2010_1 <- plot_ests(ppc_2010$ppc_draws,
+                            ppc_2010$y_tibble,
+                            prop_val = 1)
+
+ppc_1_2010 <- ppc_fit_2010_1 +
+  labs(title = expression(Pr(y[ik] == 1)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2010_3 <- plot_ests(ppc_2010$ppc_draws,
+                            ppc_2010$y_tibble,
+                            prop_val = 3)
+
+ppc_3_2010 <- ppc_fit_2010_3 +
+  labs(title = expression(Pr(y[ik] == 3)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2010_5 <- plot_ests(ppc_2010$ppc_draws,
+                            ppc_2010$y_tibble,
+                            prop_val = 5)
+
+ppc_5_2010 <- ppc_fit_2010_5 +
+  labs(title = expression(Pr(y[ik] == 5)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+
+x_label <- textGrob("Simulated",
+                    gp = gpar(fontsize = 16))
+y_label <- textGrob("Data",
+                    rot = 90, gp = gpar(fontsize = 16))
+
+grid_plot <- grid.arrange(
+  arrangeGrob(
+    y_label,                # Left y-axis label
+    arrangeGrob(ppc_0_2010, ppc_1_2010,
+                ppc_3_2010, ppc_5_2010, nrow = 1, ncol = 4), # Plots in a 2x2 grid
+    ncol = 2,
+    widths = unit.c(grobWidth(y_label) + unit(0.5, "line"),
+                    unit(0.95, "npc") - grobWidth(y_label))
+  ),
+  x_label,                  # Bottom x-axis label
+  nrow = 2,
+  heights = unit.c(unit(0.65, "npc") - 
+                     grobHeight(x_label),
+                   grobHeight(x_label) - unit(0.5, "line"))
+)
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "mix_2_ppc_all_2010.png"),
+       plot = grid_plot,
+       dpi = 600,
+       height = 5, width = 7)
+
+
+## 2019 model
+
+ppc_fit_2019_0 <- plot_ests(ppc_2019$ppc_draws,
+                            ppc_2019$y_tibble,
+                            prop_val = 0)
+
+ppc_0_2019 <- ppc_fit_2019_0 +
+  labs(title = expression(Pr(y[ik] == 0)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2019_1 <- plot_ests(ppc_2019$ppc_draws,
+                            ppc_2019$y_tibble,
+                            prop_val = 1)
+
+ppc_1_2019 <- ppc_fit_2019_1 +
+  labs(title = expression(Pr(y[ik] == 1)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2019_3 <- plot_ests(ppc_2019$ppc_draws,
+                            ppc_2019$y_tibble,
+                            prop_val = 3)
+
+ppc_3_2019 <- ppc_fit_2019_3 +
+  labs(title = expression(Pr(y[ik] == 3)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+ppc_fit_2019_5 <- plot_ests(ppc_2019$ppc_draws,
+                            ppc_2019$y_tibble,
+                            prop_val = 5)
+
+ppc_5_2019 <- ppc_fit_2019_5 +
+  labs(title = expression(Pr(y[ik] == 5)),
+       subtitle = "") +
+  theme_single_grid() +
+  scale_x_continuous(breaks = breaks_pretty(n = 2)) +
+  scale_y_continuous(breaks = breaks_pretty(n = 2))
+
+
+x_label <- textGrob("Simulated",
+                    gp = gpar(fontsize = 16))
+y_label <- textGrob("Data",
+                    rot = 90, gp = gpar(fontsize = 16))
+
+grid_plot <- grid.arrange(
+  arrangeGrob(
+    y_label,                # Left y-axis label
+    arrangeGrob(ppc_0_2019, ppc_1_2019,
+                ppc_3_2019, ppc_5_2019, nrow = 1, ncol = 4), # Plots in a 2x2 grid
+    ncol = 2,
+    widths = unit.c(grobWidth(y_label) + unit(0.5, "line"),
+                    unit(0.95, "npc") - grobWidth(y_label))
+  ),
+  x_label,                  # Bottom x-axis label
+  nrow = 2,
+  heights = unit.c(unit(0.65, "npc") - 
+                     grobHeight(x_label),
+                   grobHeight(x_label) - unit(0.5, "line"))
+)
+
+ggsave(filename = here("Summer_2024", "figures",
+                       "mix_2_ppc_all_2019.png"),
+       plot = grid_plot,
+       dpi = 600,
+       height = 5, width = 7)
