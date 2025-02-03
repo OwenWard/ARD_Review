@@ -75,6 +75,8 @@ sub_pop_id <- rep(NA, n_population)
 subpop_greg_means <- seq(from = 5, to = 7.5, length.out = n_subpop)
 subpop_greg_sd <- 0.25
 
+true_subpop_size <- rep(0, n_subpop)
+
 lambda <- 8 ## scaling parameter in the distance
 for(k in 1:n_subpop){
   
@@ -90,6 +92,7 @@ for(k in 1:n_subpop){
   prob_sub <- ifelse(prob_sub > 1, 1, prob_sub)
   sub_member <- rbinom(n_population, 1, p = prob_sub)
   cat(paste0(sum(sub_member), "\n"))  
+  true_subpop_size[k] <- sum(sub_member)
   ## this number should be the approximate size of the subpopulation
   ## in the population, because want to randomly assign all nodes based on
   ## distance to center
