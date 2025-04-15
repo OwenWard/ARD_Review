@@ -1,6 +1,6 @@
 // Feb 3rd 2025,
 // this is the Zheng et al model directly,
-// which then does the rescaling after the face, doesn't need to
+// which then does the rescaling after the fact, doesn't need to
 // specify betas as known in advance
 
 data {

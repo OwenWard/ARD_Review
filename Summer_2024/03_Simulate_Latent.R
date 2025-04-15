@@ -342,7 +342,13 @@ ggsave(filename = here("Summer_2024", "figures",
        dpi = 600,
        height = 5, width = 7)
 
+## compute loo-cv for this between these models
 
+library(loo)
+loo_1 <- stan_fit_null_01$loo(cores = 4)
+loo_2 <- stan_fit_null_02$loo(cores = 4)
+
+loo_compare(loo_1, loo_2)
 
 # Fit the 2006 ARD Model --------------------------------------------------
 
@@ -395,11 +401,8 @@ stan_fit_2006$summary(variables = c("mu_alpha",
                                     "sigma_alpha",
                                     "beta"))
 
-mcmc_trace(stan_fit_2006$draws(variables = c("mu_alpha",
-                                             "sigma_alpha",
+mcmc_trace(stan_fit_2006$draws(variables = c("sigma_alpha",
                                              "beta")))
-
-
 
 ## Plot histogram of estimated degree a_i = exp(alpha_i)
 ## and compare it to the true known degrees for this sample
@@ -1004,3 +1007,64 @@ ggsave(filename = here("Summer_2024", "figures",
        plot = grid_plot,
        dpi = 600,
        height = 5, width = 7)
+
+
+
+
+
+# Fit Laga et al 2023 -----------------------------------------------------
+
+## this rough, mostly in untitled at the moment
+stan_data <- list(n_i = nrow(y_sim),
+                  n_k = ncol(y_sim),
+                  y = y_sim)
+
+
+model2 <- cmdstan_model(stan_file = "Summer_2024/laga_stan/correlated.stan")
+
+stan_fit_model2 <- model2$sample(data = stan_data,
+                                 seed = 123,
+                                 chains = 4,
+                                 iter_sampling = 1000,
+                                 iter_warmup = 1000,
+                                 parallel_chains = 4,
+                                 refresh = 100)
+
+stan_fit_model2$summary(variables = c("mu_rho", "sigma_rho"))
+
+stan_fit_model2$summary(variables = "delta")
+
+
+## need to scale these afterwards also...
+
+delta = draws$delta
+sigma_delta = draws$sigma_delta
+log_degrees = matrix(NA, nrow = nrow(delta), ncol = ncol(delta))
+for (i in 1:nrow(log_degrees)) {
+  log_degrees[i, ] = delta[i, ] * sigma_delta[i]
+}
+if (!is.null(scaling)) {
+  if ((scaling == "weighted") | (scaling == "weighted_sq")) {
+    Correlation = draws$Corr
+    Correlation = apply(Correlation, c(2, 3), mean)
+    scaling_res = networkscaleup::scaling(log_degrees, 
+                                          draws$rho, scaling = scaling, known_sizes = known_sizes, 
+                                          known_ind = known_ind, Correlation = Correlation, 
+                                          N = N)
+  }
+  else if (scaling == "all") {
+    scaling_res = networkscaleup::scaling(log_degrees, 
+                                          draws$rho, scaling = scaling, known_sizes = known_sizes, 
+                                          known_ind = known_ind, N = N)
+  }
+  else if (scaling == "overdispersed") {
+    scaling_res = networkscaleup::scaling(log_degrees, 
+                                          draws$rho, scaling = scaling, known_sizes = known_sizes, 
+                                          known_ind = known_ind, G1_ind = G1_ind, G2_ind = G2_ind, 
+                                          B2_ind = B2_ind, N = N)
+  }
+  draws$log_degrees = scaling_res$log_degrees
+  draws$degrees = exp(draws$log_degrees)
+  draws$log_prevalences = scaling_res$log_prevalences
+  draws$sizes = exp(draws$log_prevalences) * N
+}

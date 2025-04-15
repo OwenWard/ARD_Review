@@ -9,15 +9,17 @@
 data {
   int<lower=0> N;
   int<lower=0> K;
-  vector[K] mu_beta; // secify these as known
-  vector<lower=0>[K] sigma_beta; // specify these as known
+  // vector[K] mu_beta; // secify these as known
+  // vector<lower=0>[K] sigma_beta; // specify these as known
   array[N, K] int y;
 }
 
 
 parameters {
   real mu_alpha;
+  real mu_beta;
   real<lower=0> sigma_alpha;
+  real<lower=0> sigma_beta;
   vector[N] alpha;
   vector[K] beta;
   vector<lower=0, upper=1>[K] inv_omega;
@@ -26,11 +28,9 @@ parameters {
 // The model to be estimated..
 model {
   
-  mu_alpha ~ normal(0, 25);
+  // mu_alpha ~ normal(0, 25);
   sigma_alpha ~ normal(0, 5);
-
-  
-  alpha ~ normal(mu_alpha, sigma_alpha);
+  alpha ~ normal(0, sigma_alpha);
   beta ~ normal(mu_beta, sigma_beta); 
   
   for(n in 1:N){
