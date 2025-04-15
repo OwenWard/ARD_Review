@@ -138,13 +138,13 @@ if (!is.null(G1_ind)) {
 }
 
 for (ind in 1:nrow(betas)) {
-    C1 = log(sum(exp(betas[ind, G1_ind])/Pg1))
-    C = C1
-    alphas[ind, ] = alphas[ind, ] + C
-    mu_alpha[ind] = C
-    betas[ind, ] = betas[ind, ] - C
-    mu_beta[ind] = mu_beta[ind] - C
-  }
+  C1 <- log(sum(exp(betas[ind, G1_ind]) / Pg1))
+  C <- C1
+  alphas[ind, ] <- alphas[ind, ] + C
+  mu_alpha[ind] <- C
+  betas[ind, ] <- betas[ind, ] - C
+  mu_beta[ind] <- mu_beta[ind] - C
+}
 
 ## then compare these estimates directly, use them to predict stuff, do
 ## ppcheck also
