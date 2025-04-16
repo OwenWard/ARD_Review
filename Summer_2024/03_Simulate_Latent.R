@@ -27,10 +27,10 @@ library(gridExtra)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 
-source(here("Summer_2024/", "helper_model_checking.R"))
-source(here("Summer_2024/", "helper_latent_surface_model.R"))
-source(here("Summer_2024/", "helper_functions_latent_ard.R"))
-source(here("Summer_2024/", "helper_plots.R"))
+source(here("helper", "helper_model_checking.R"))
+source(here("helper", "helper_latent_surface_model.R"))
+source(here("helper", "helper_functions_latent_ard.R"))
+source(here("helper", "helper_plots.R"))
 set.seed(100)
 # Simulate the Positions and Overall Network -----------------------------------
 
@@ -205,7 +205,7 @@ stan_data_null <- list(N = nrow(y_sim),
                        K = ncol(y_sim),
                        y = y_sim)
 
-stan_file_null_01 <- here("Summer_2024/", "null_model_01.stan")
+stan_file_null_01 <- here("helper", "null_model_01.stan")
 
 mod_null_01 <- cmdstan_model(stan_file_null_01)
 
@@ -251,7 +251,7 @@ ggsave(filename = here("Summer_2024", "figures",
 
 ## Fit the second null model, allowing varying degrees
 
-stan_file_null_02 <- here("Summer_2024/", "null_model_02.stan")
+stan_file_null_02 <- here("helper", "null_model_02.stan")
 mod_null_02 <- cmdstan_model(stan_file_null_02)
 stan_fit_null_02 <- mod_null_02$sample(data = stan_data_null,
                                        seed = 123,
