@@ -220,7 +220,28 @@ stan_fit_null_01$summary(variables = c("log_d", "beta"))
 
 #### can we rescale these using the known subpopulations here?
 
+## try using the scaling from Laga and Kunke paper instead
 
+b_ests <- stan_fit_null_01$summary(variables = c("beta")) |> 
+  pull(mean)
+
+pop_size_ests <- b_ests * n_population
+## rescale by the known population sizes
+known_pops <- 1:5
+
+C <- 1/length(known_pops) * 
+  sum(pop_size_ests[known_pops]/true_subpop_size[known_pops])
+
+pop_size_ests_scaled <- pop_size_ests/C
+pop_size_ests_scaled
+true_subpop_size
+
+## what about a simpler scaling like in Laga 2021
+
+C_other <- log(1/length(known_pops) * 
+                 sum(b_ests[known_pops]/((pop_size_ests[known_pops]/true_subpop_size[known_pops]))))
+C_other
+new_beta <- log(b_ests) - C_other
 
 
 ## look at the estimated degree
