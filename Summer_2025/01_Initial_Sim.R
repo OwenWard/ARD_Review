@@ -197,14 +197,19 @@ plot_subpops
 
 known_pops <- c(1:5)
 
+# Fit Simple Null Models, with scaling----------------------------------------
 
-# Fit Simple Null Models --------------------------------------------------
 
+# Model 1 --------------------------------------
+G1_ind <- known_pops
 stan_data_null <- list(N = nrow(y_sim),
                        K = ncol(y_sim),
-                       y = y_sim)
+                       y = y_sim,
+                       n_known = length(G1_ind),
+                       idx = G1_ind,
+                       known_prev = Pg1)
 
-stan_file_null_01 <- here("stan_models", "null_model_01.stan")
+stan_file_null_01 <- here("stan_models", "null_model_01_scaled.stan")
 
 mod_null_01 <- cmdstan_model(stan_file_null_01)
 
@@ -216,82 +221,97 @@ stan_fit_null_01 <- mod_null_01$sample(data = stan_data_null,
                                        parallel_chains = 4,
                                        refresh = 100)
 
-stan_fit_null_01$summary(variables = c("log_d", "beta"))
-
-#### can we rescale these using the known subpopulations here?
-
-## try using the scaling from Laga and Kunke paper instead
-
-b_ests <- stan_fit_null_01$summary(variables = c("beta")) |> 
-  pull(mean)
-
-pop_size_ests <- b_ests * n_population
-## rescale by the known population sizes
-known_pops <- 1:5
-
-C <- 1/length(known_pops) * 
-  sum(pop_size_ests[known_pops]/true_subpop_size[known_pops])
-
-pop_size_ests_scaled <- pop_size_ests/C
-pop_size_ests_scaled
-true_subpop_size
-
-## what about a simpler scaling like in Laga 2021
-
-C_other <- log(1/length(known_pops) * 
-                 sum(b_ests[known_pops]/((pop_size_ests[known_pops]/true_subpop_size[known_pops]))))
-C_other
-new_beta <- log(b_ests) - C_other
+stan_fit_null_01$summary()
+mcmc_trace(stan_fit_null_01$draws(), pars = "scaled_log_d")
 
 
-## look at the estimated degree
+## check the population sizes here for this
+b_draws <- stan_fit_null_01$draws() |> 
+  as_draws_df() |> 
+  select(starts_with("b["))
 
+size_ests <- b_draws * n_population
+head(rowSums(size_ests[, G1_ind]))
+sum(true_subpop_size[1:5])
+
+## look at posterior estimates of degree and subpop size
 stan_fit_null_01$draws() |> 
   as_draws_df() |> 
-  dplyr::select(starts_with("log_d")) |> 
+  dplyr::select(starts_with("scaled_log_d")) |> 
   mutate(draw = row_number())  |> 
-  mutate(degree = exp(log_d)) |> 
+  mutate(degree = exp(scaled_log_d)) |> 
   ggplot(aes(degree)) +
   geom_histogram()
 
-## look at simple ppc
+hist(samp_degree)
+
+## show the true subpopulation sizes
+subpop_info <- tibble(subpop = 1:n_subpop,
+       size = true_subpop_size)
+
+stan_fit_null_01$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("b[")) |>
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("b"),
+               names_to = "par", 
+               values_to = "sample") |> 
+  mutate(subpop = parse_number(par),
+         subpop_size = n_population * sample) |> 
+  # filter(!(subpop %in% G1_ind)) |> 
+  ggplot(aes(subpop_size)) +
+  geom_histogram() +
+  facet_wrap(~subpop, scales = "free", nrow = 3) +
+  geom_vline(data = subpop_info, aes(xintercept = size), col = "red")
+
+
+## compute ppc
 ppc_null_1 <- construct_ppc(stan_fit_null_01, y_sim)
 
-ppc_fit_null_1 <- plot_ests(ppc_null_1$ppc_draws, 
+(ppc_fit_null_1 <- plot_ests(ppc_null_1$ppc_draws, 
                             ppc_null_1$y_tibble,
-                            prop_val = 1)
+                            prop_val = 1))
 
 ppc_1_null_1 <- ppc_fit_null_1 + 
   labs(title = expression("Proportion of " * y[ik] == 1),
        subtitle = "") +
   theme_single()
+ppc_1_null_1
 
-ggsave(filename = here("Summer_2024", "figures",
-                       "latent_ppc_null_1.png"),
-       plot = ppc_1_null_1,
-       dpi = 600,
-       height = 5, width = 7)
+
+
+# Fit Model 2 with Scaling  -----------------------------------------------
 
 
 ## Fit the second null model, allowing varying degrees
 
-stan_file_null_02 <- here("helper", "null_model_02.stan")
+stan_file_null_02 <- here("stan_models", "null_model_02_scaled.stan")
 mod_null_02 <- cmdstan_model(stan_file_null_02)
 stan_fit_null_02 <- mod_null_02$sample(data = stan_data_null,
                                        seed = 123,
                                        chains = 4,
-                                       iter_sampling = 1000,
+                                       iter_sampling = 4000,
                                        iter_warmup = 1000,
                                        parallel_chains = 4,
                                        refresh = 100)
 
-stan_fit_null_02$summary(variables = c("beta", "log_d[1]", "log_d[2]"))
+stan_fit_null_02$summary(variables = c("scaled_beta", "scaled_log_d[1]",
+                                       "scaled_log_d[2]"))
+
+## check the population sizes
+b_draws <- stan_fit_null_02$draws() |> 
+  as_draws_df() |> 
+  select(starts_with("b["))
+
+size_ests <- b_draws * n_population
+head(rowSums(size_ests[, G1_ind]))
+sum(true_subpop_size[1:5])
 
 stan_fit_null_02$draws() |> 
   as_draws_df() |> 
-  dplyr::select(starts_with("log_d")) |> 
+  dplyr::select(starts_with("scaled_log_d")) |> 
   mutate(draw = row_number())  |>
-  pivot_longer(cols = starts_with("log_d"),
+  pivot_longer(cols = starts_with("scaled_log_d"),
                names_to = "node", 
                values_to = "log_d") |> 
   mutate(degree = exp(log_d),
@@ -301,16 +321,34 @@ stan_fit_null_02$draws() |>
   labs(title = "Estimated Degree Distribution",
        subtitle = "Null Model, varying Degrees")
 
+
+stan_fit_null_02$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("b[")) |>
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("b"),
+               names_to = "par", 
+               values_to = "sample") |> 
+  mutate(subpop = parse_number(par),
+         subpop_size = n_population * sample) |> 
+  # filter(!(subpop %in% G1_ind)) |> 
+  ggplot(aes(subpop_size)) +
+  geom_histogram() +
+  facet_wrap(~subpop, scales = "free", nrow = 3) +
+  geom_vline(data = subpop_info, aes(xintercept = size), col = "red")
+
 ppc_null_2 <- construct_ppc(stan_fit_null_02, y_sim)
 
-ppc_fit_null_2 <- plot_ests(ppc_null_2$ppc_draws, 
+(ppc_fit_null_2 <- plot_ests(ppc_null_2$ppc_draws, 
                             ppc_null_2$y_tibble,
-                            prop_val = 1)
+                            prop_val = 1))
 
 ppc_1_null_2 <- ppc_fit_null_2 +
   labs(title = expression("Proportion of " * y[ik] == 1),
        subtitle = "") +
   theme_single()
+
+ppc_1_null_2
 
 ggsave(filename = here("Summer_2024", "figures",
                        "latent_ppc_null_2.png"),
@@ -322,17 +360,17 @@ ggsave(filename = here("Summer_2024", "figures",
 ## show the estimated degree from null models and compare to true distribution
 null_1_deg <- stan_fit_null_01$draws() |> 
   as_draws_df() |> 
-  dplyr::select(starts_with("log_d")) |> 
+  dplyr::select(starts_with("scaled_log_d")) |> 
   mutate(draw = row_number())  |> 
-  mutate(degree = exp(log_d)) |> 
+  mutate(degree = exp(scaled_log_d)) |> 
   select(draw, degree) |> 
   mutate(model = "Null Model 1")
 
 null_2_deg <- stan_fit_null_02$draws() |> 
   as_draws_df() |> 
-  dplyr::select(starts_with("log_d")) |> 
+  dplyr::select(starts_with("scaled_log_d")) |> 
   mutate(draw = row_number())  |> 
-  pivot_longer(cols = starts_with("log_d"),
+  pivot_longer(cols = starts_with("scaled_log_d"),
                names_to = "node", 
                values_to = "log_d") |> 
   mutate(degree = exp(log_d),
@@ -360,6 +398,8 @@ null_deg_plot <- bind_rows(null_1_deg,
                      limits = c(0, 750)) +
   theme_single_legend() 
 
+null_deg_plot
+
 ggsave(filename = here("Summer_2024", "figures",
                        "latent_null_deg.png"),
        plot = null_deg_plot,
@@ -373,3 +413,6 @@ loo_1 <- stan_fit_null_01$loo(cores = 4)
 loo_2 <- stan_fit_null_02$loo(cores = 4)
 
 loo_compare(loo_1, loo_2)
+
+
+## maybe the fact that loo-cv not reasonable for these models is enough...

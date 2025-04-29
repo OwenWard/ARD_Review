@@ -127,7 +127,8 @@ alphas <- fit_draws |> select(starts_with("alphas"))
 mu_alpha <- rep(NA, nrow(betas))
 
 ## how does this work if G1_ind is NULL?
-G1_ind <- 1 ## setting this just to get the code working
+G1_ind <- 1:10 ## setting this just to get the code working
+known_ind <- G1_ind
 N <- n_population
 known_sizes <- true_subpop_size[G1_ind]
 known_prevalences <- known_sizes / N
@@ -145,6 +146,10 @@ for (ind in 1:nrow(betas)) {
   betas[ind, ] <- betas[ind, ] - C
   mu_beta[ind] <- mu_beta[ind] - C
 }
+
+## this gets the sum of them to match..
+## can definitely use this for the null model, which will have a common
+## alpha for everything!
 
 ## then compare these estimates directly, use them to predict stuff, do
 ## ppcheck also
