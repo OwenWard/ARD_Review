@@ -41,7 +41,6 @@ model {
 }
 
 
-// skip these for now
 
 generated quantities {
   array[N] int y_sum;

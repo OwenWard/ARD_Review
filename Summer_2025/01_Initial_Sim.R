@@ -350,11 +350,6 @@ ppc_1_null_2 <- ppc_fit_null_2 +
 
 ppc_1_null_2
 
-ggsave(filename = here("Summer_2024", "figures",
-                       "latent_ppc_null_2.png"),
-       plot = ppc_1_null_2,
-       dpi = 600,
-       height = 5, width = 7)
 
 
 ## show the estimated degree from null models and compare to true distribution
@@ -400,11 +395,6 @@ null_deg_plot <- bind_rows(null_1_deg,
 
 null_deg_plot
 
-ggsave(filename = here("Summer_2024", "figures",
-                       "latent_null_deg.png"),
-       plot = null_deg_plot,
-       dpi = 600,
-       height = 5, width = 7)
 
 ## compute loo-cv for this between these models
 
@@ -416,3 +406,381 @@ loo_compare(loo_1, loo_2)
 
 
 ## maybe the fact that loo-cv not reasonable for these models is enough...
+## need to dig into this a bit more
+
+
+
+
+# Fit Zheng 2006 Model ----------------------------------------------------
+
+stan_file_zheng <- here("stan_models", "zheng_et_al_2006_scaled.stan")
+mod_zheng <- cmdstan_model(stan_file_zheng)
+stan_fit_zheng <- mod_zheng$sample(data = stan_data_null,
+                                   seed = 123,
+                                   chains = 4,
+                                   iter_sampling = 1000,
+                                   iter_warmup = 1000,
+                                   parallel_chains = 4,
+                                   refresh = 100)
+
+stan_fit_zheng$summary(variables = c("sigma_alpha", "scaled_beta"))
+
+## check it recovers the groups correctly
+b_draws <- stan_fit_zheng$draws() |> 
+  as_draws_df() |> 
+  select(starts_with("scaled_beta"))
+
+size_ests <- exp(b_draws) * n_population
+head(rowSums(size_ests[, G1_ind]))
+sum(true_subpop_size[1:5])
+
+## look at posterior estimates of degree and subpop size
+stan_fit_zheng$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("scaled_alpha")) |> 
+  mutate(draw = row_number())  |> 
+  pivot_longer(cols = starts_with("scaled_alpha"), 
+               names_to = "par", values_to = "sample") |> 
+  mutate(node = parse_number(par)) |> 
+  mutate(degree = exp(sample)) |> 
+  ggplot(aes(degree)) +
+  geom_histogram()
+
+
+
+stan_fit_zheng$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("scaled_beta[")) |>
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("scaled_beta"),
+               names_to = "par", 
+               values_to = "sample") |> 
+  mutate(subpop = parse_number(par),
+         subpop_size = n_population * exp(sample)) |> 
+  # filter(!(subpop %in% G1_ind)) |> 
+  ggplot(aes(subpop_size)) +
+  geom_histogram() +
+  facet_wrap(~subpop, scales = "free", nrow = 3) +
+  geom_vline(data = subpop_info, aes(xintercept = size), col = "red")
+
+
+
+ppc_zheng <- construct_ppc(stan_fit_zheng, y_sim)
+
+(ppc_fit_zheng <- plot_ests(ppc_zheng$ppc_draws, 
+                             ppc_zheng$y_tibble,
+                             prop_val = 1))
+
+loo_est <- stan_fit_zheng$loo(cores = 4)
+## these look good, which means we can use it for this data!!! (hopefully)
+
+
+
+
+# Fit McCormick 2010 ------------------------------------------------------
+
+## to fit this model need to specify ego and alter groups 
+## in both the nodes in ard sample and also in the ard subpopulations
+## also need to specify beta, which corresponds to proportions
+## of the alter groups in a subpop
+## will assume all alter groups equally weighted across all populations
+## USING TRUE subpop sizes
+
+num_egos <- 6
+num_alters <- 6
+
+## as we don't have ego alter mixing structure seems we should just
+## simulate this somehow here based on assigned subpopulations maybe
+
+
+## assign egos randomly
+
+sample_egos <- sample(1:num_egos, size = n_sample, replace = TRUE)
+
+## create random alter centers and construct beta based on distance between
+## these and the subpop centers (such that they are reasonably small)
+## then that's all i need
+alter_centers <- r_vMF(n = num_alters, mu = c(1, 1, 1), kappa = 0.05)
+
+beta_sim <- matrix(NA,
+                   nrow = num_alters,
+                   ncol = n_subpop)
+
+lambda_alter <- 5
+## make this large enough so that prob sub smallish
+
+for(i in 1:num_alters){
+  ###
+  curr_alter <- alter_centers[i, ]
+  dot_prod <- subpop_centers %*% curr_alter
+  dist <- acos(dot_prod)
+  ## these distances between 0 and 2pi
+  prob_sub <- exp(- lambda_alter * dist)
+  beta_sim[i, ] <- prob_sub
+}
+
+## could potentially use this beta, assuming each supop 
+## equally spread across the ego groups, will give the right subpop proportions
+# for(i in 1:n_subpop){
+#   beta_sim[, i] <- rep(true_subpop_size[i]/(n_population), num_egos)
+# }
+
+
+mix_data_stan <- list(E = num_egos,
+                      A = num_alters,
+                      K = ncol(y_sim),
+                      N = nrow(y_sim),
+                      y = y_sim,
+                      ego = sample_egos,
+                      Beta = beta_sim,
+                      theta_d = c(6.2, .5),
+                      theta_o = c(3, 2),
+                      alpha = rep(1, num_alters)/num_alters,
+                      p = 1)
+
+stan_file_2010 <- here("stan_models", "mc_cormick_et_al_2010.stan")
+mod_2010 <- cmdstan_model(stan_file = stan_file_2010)
+
+stan_fit_2010 <- mod_2010$sample(data = mix_data_stan,
+                                 seed = 123,
+                                 chains = 4,
+                                 iter_sampling = 1000,
+                                 iter_warmup = 1000,
+                                 parallel_chains = 4,
+                                 refresh = 100)
+
+stan_fit_2010$summary(variables = c("M", "omega"))
+
+## plot the estimated degree distributions from this
+est_degrees_2010 <- stan_fit_2010$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("log_d")) |> 
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("log_d"),
+               names_to = "node",
+               values_to = "log_estimate") |> 
+  mutate(node = parse_number(node)) |> 
+  mutate(est_degree = exp(log_estimate)) 
+
+est_degrees_2010 |> 
+  ggplot(aes(est_degree)) +
+  geom_histogram() +
+  labs(title = "Posterior Estimates",
+       subtitle = "2010 Model")
+
+## compare to true distribution, seems to over estimate
+true_deg |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  labs(title = "True Degree Distribution")
+
+## then do ppc for this model also
+ppc_2010 <- construct_ppc(stan_fit_2010, y_sim)
+
+ppc_fit_2010 <- plot_ests(ppc_2010$ppc_draws,
+                          ppc_2010$y_tibble,
+                          prop_val = 1)
+ppc_fit_2010 + 
+  labs(title = "McCormick et al, 2010") 
+
+
+## look at the subpopulation estimates
+stan_fit_2010$summary(variables = c("M")) |> print(n = 36)
+
+# dot_product(M[ego[n]], sub_col(Beta, 1, k, A))
+## this is it, from stan
+mix_data_stan$Beta
+    
+
+loo_est_2010 <- stan_fit_2010$loo(cores = 4)
+loo_est_2010
+
+
+loo_compare(loo_est, loo_est_2010)
+
+
+
+# Fit McCormick and Zheng 2015 --------------------------------------------
+
+
+dim(y_sim)
+
+ls.dim <- 3
+n <- dim(y_sim)[1]
+n.iter <- 5000#3000
+n.thin <- 10
+m.iter <- 4
+total.prop <- 0.25
+
+## taking this from the github
+muk.fix.ind <- sample(1:8, size = 4, replace = F)
+muk.fix <- matrix(runif(12), nrow = 4, ncol = 3)
+muk.fix <- sweep(muk.fix, MARGIN = 1, 1 / sqrt(rowSums(muk.fix^2)), `*`)
+
+z.pos.init <- generateRandomInitial(n, ls.dim)
+out <- f.metro(y_sim,
+               total.prop = total.prop,
+               n.iter = n.iter,
+               m.iter = m.iter,
+               n.thin = n.thin,
+               z.pos.init = z.pos.init,
+               muk.fix = muk.fix,
+               ls.dim = ls.dim)
+
+## Use these estimated model fits
+
+posterior <- getPosterior(out, n.iter, m.iter, n.thin, n)
+est.degrees <- posterior$est.degrees
+
+colnames(est.degrees) <- paste0("node", 1:n)
+est_degrees_2015 <- as_tibble(est.degrees) |> 
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("node"), names_to = "node",
+               values_to = "est_log_degree") |> 
+  mutate(degree = exp(est_log_degree))
+
+
+est_degrees_2015 |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  labs(title = "Degree Estimates",
+       subtitle = "2015 Model")
+
+true_deg |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  labs(title = "True Degree Distribution")
+
+
+all_post <- get_all_post(out, n.iter, m.iter, n.thin, n, k)
+num_sims <- 1000
+## this can likely be parallelized, but works for now
+
+sim_y <- function(all_post, n, k, num_sims, ls.dim = 3){
+  y_sim <- array(NA, dim = c(n, k, num_sims))
+  for(sim in 1:num_sims){
+    ## get the current estimates of everything
+    curr_latent_pos <- matrix(all_post$est.latent.pos[sim, ],
+                              byrow = F,
+                              nrow = n,
+                              ncol = ls.dim)
+    curr_mu <- matrix(all_post$est.mu.k[sim, ],
+                      byrow = F, nrow = k, ncol = ls.dim)
+    curr_eta <- all_post$est.eta[sim] 
+    curr_degrees <- all_post$est.degrees[sim, ]
+    curr_beta <- all_post$est.beta[sim, ]
+    curr_eta_k <- all_post$eta.eta.k[sim, ]
+    ## simulate the entries of y and populate y_sim
+    for(i in 1:n){
+      curr_deg <- curr_degrees[i]
+      curr_pos <- curr_latent_pos[i, ]
+      curr_prod <- acos(curr_pos %*% t(curr_mu) )
+      sqrt_term <- sqrt(curr_eta ^ 2 + curr_eta_k^2 + 
+                          2 * curr_eta * curr_eta_k * cos(curr_prod))
+      cp_term <- cp_fcn(curr_eta) * cp_fcn(curr_eta_k) / (cp_fcn(0) * 
+                                                            cp_fcn(sqrt_term))
+      rate_vec <- exp(curr_deg) * exp(curr_beta) * cp_term
+      y_sim[i, ,sim] <- mapply(rpois, n = 1, lambda = rate_vec)
+    }
+  }
+  y_sim
+}
+
+y_sim_ppc <- sim_y(all_post, n, k, num_sims, ls.dim = 3)
+
+dim(y_sim_ppc)
+
+index_grid <- expand_grid(
+  Index1 = seq_len(dim(y_sim_ppc)[1]),
+  Index2 = seq_len(dim(y_sim_ppc)[2]),
+  Index3 = seq_len(dim(y_sim_ppc)[3])
+)
+
+# Add the values from the array to the grid
+tibble_df <- index_grid |> 
+  mutate(Value = y_sim_ppc[cbind(Index1, Index2, Index3)])
+
+ard_ppc_draws <- tibble_df |> 
+  rename(node_id = Index1,
+         sub_pop_id = Index2,
+         draw = Index3,
+         count = Value)
+
+## then do the ppc with this data
+ppc_fit_2015 <- plot_ests(ard_ppc_draws,
+                          ppc_2010$y_tibble,
+                          prop_val = 1)
+
+ppc_fit_2015 + 
+  labs(title = "McCormick et al, 2015")
+
+
+## compute log-likelihood instead
+## this a quick solution, can make it precise after
+## needs to actually be a matrix maybe here, need to figure it 
+## out
+
+## need to fix this so it can be passed into loo
+## does stan flatten the array of llh row wise or column wise?
+
+llh_y <- function(all_post, n, k, num_sims, ls.dim = 3, y_sim){
+  llh <- array(NA, dim = c(num_sims, n, k))
+  for(sim in 1:num_sims){
+    ## get the current estimates of everything
+    curr_latent_pos <- matrix(all_post$est.latent.pos[sim, ],
+                              byrow = F,
+                              nrow = n,
+                              ncol = ls.dim)
+    curr_mu <- matrix(all_post$est.mu.k[sim, ],
+                      byrow = F, nrow = k, ncol = ls.dim)
+    curr_eta <- all_post$est.eta[sim] 
+    curr_degrees <- all_post$est.degrees[sim, ]
+    curr_beta <- all_post$est.beta[sim, ]
+    curr_eta_k <- all_post$eta.eta.k[sim, ]
+    ## simulate the entries of y and populate y_sim
+    for(i in 1:n){
+      curr_deg <- curr_degrees[i]
+      curr_pos <- curr_latent_pos[i, ]
+      curr_prod <- acos(curr_pos %*% t(curr_mu) )
+      sqrt_term <- sqrt(curr_eta ^ 2 + curr_eta_k^2 + 
+                          2 * curr_eta * curr_eta_k * cos(curr_prod))
+      cp_term <- cp_fcn(curr_eta) * cp_fcn(curr_eta_k) / (cp_fcn(0) * 
+                                                            cp_fcn(sqrt_term))
+      rate_vec <- exp(curr_deg) * exp(curr_beta) * cp_term
+      ## just need to change this
+      llh[sim, i,] <- mapply(dpois, x = y_sim[i,],
+                             lambda = rate_vec, log = TRUE)
+    }
+  }
+  llh
+}
+
+
+
+llh_sim <- llh_y(all_post, n, k, num_sims, ls.dim = 3, y_sim)
+## can then just modify this if I know the right way it does this...
+
+dim(llh_sim)
+mat <- apply(llh_sim, 1, function(x) as.vector(x)) |> t() 
+## this flattens row by row
+dim(mat)
+
+
+loo_2015 <- loo(mat)
+loo_2015
+
+
+loo_compare(loo_2015, loo_est, loo_est_2010)
+
+## should probably try to improve the mcmc for the 2015 model here for a 
+## full comparison, but initial starting point
+
+num_pars <- 1035
+par_rhat <- rep(NA, num_pars)
+
+for(i in 1:num_pars){
+  draws <- out$sims[ , , i]
+  par_rhat[i] <- rhat(draws)
+}
+
+summary(par_rhat)
