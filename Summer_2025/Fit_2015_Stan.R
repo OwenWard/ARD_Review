@@ -14,6 +14,7 @@ theme_set(theme_bw())
 
 stan_data <- readRDS(here("stan_models", "stan_data_2015.RDS"))
 
+stan_file_2015 <- here("stan_models", "mc_cormick_and_zheng_2015.stan")
 mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
 
 stan_fit_2015 <- mod_2015$sample(data = stan_data,
