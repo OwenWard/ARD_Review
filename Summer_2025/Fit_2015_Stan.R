@@ -1,12 +1,12 @@
 library(rotasym)
 library(tidyverse)
-library(tidymodels) # to use coord_obs_pred
+#library(tidymodels) # to use coord_obs_pred
 library(cmdstanr)
 library(here)
-library(bayesplot)
-library(posterior)
-library(grid)
-library(gridExtra)
+#library(bayesplot)
+#library(posterior)
+#library(grid)
+#library(gridExtra)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 
