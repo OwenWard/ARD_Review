@@ -118,18 +118,22 @@ profile("likelihood"){
 
 
 
-// generated quantities {
-//   array[N] int y_sum;
-//   array[N, K] int y_sim;
-//   array[N,K] real log_lik;
-//   for (n in 1:N) {
-//     for (k in 1:K) {
-//       real gamma = inv_omega[k]/(1 - inv_omega[k]) ; //the beta par of neg_bin
-//       real xi_i_k = gamma * exp(scaled_alpha[n] + scaled_beta[k])  ;
-//       y_sim[n, k] = neg_binomial_rng(xi_i_k, gamma) ;
-//       log_lik[n, k] = neg_binomial_lpmf(y[n, k] | xi_i_k, gamma);
-//     }
-//     y_sum[n] = sum( y_sim[n] );
-//   }
-// 
-// }
+generated quantities {
+  array[N] int y_sum;
+  array[N, K] int y_sim;
+  array[N,K] real log_lik;
+  for (n in 1:N) {
+    for (k in 1:K) {
+      real den_term = sqrt(xi ^2 +  eta[k]^2 + 2 * xi * eta[k] *
+                            theta[n, k]);
+      real log_num = num_part1 + num_const_eta[k];//log_vmf_norm(p, eta[k]);
+      real log_den = den_part1 + log_vmf_norm(p, den_term);
+      real gamma_ik = exp(log_num - log_den);
+      real scaled_deg = exp(scaled_alpha[n]);
+      y_sim[n, k] = poisson_rng(scaled_deg * exp(scaled_beta[k]) * gamma_ik) ;
+      log_lik[n, k] = poisson_lpmf(y[n, k] | scaled_deg * exp(scaled_beta[k]) * gamma_ik);
+    }
+    y_sum[n] = sum( y_sim[n] );
+  }
+
+}
