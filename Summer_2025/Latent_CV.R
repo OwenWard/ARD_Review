@@ -20,6 +20,8 @@ fold_id <- jobid
 
 stan_data <- readRDS(here("stan_models", "stan_data_2015.RDS"))
 y_sim <- stan_data$y
+G1_ind <- stan_data$idx
+Pg1 <- stan_data$known_prev
 y_folds <- readRDS(file = here("Summer_2025", "log_lik", "folds.RDS"))
 
 ## maybe save these folds to ensure use the same every time

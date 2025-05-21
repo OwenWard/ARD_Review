@@ -7,8 +7,6 @@ library(cmdstanr)
 library(here)
 library(bayesplot)
 library(posterior)
-#library(grid)
-#library(gridExtra)
 options(mc.cores = parallel::detectCores())
 
 set.seed(100)
@@ -16,6 +14,8 @@ set.seed(100)
 
 stan_data <- readRDS(here("stan_models", "stan_data_2015.RDS"))
 y_sim <- stan_data$y
+G1_ind <- stan_data$idx
+Pg1 <- stan_data$known_prev
 # y_folds <- kfold_split_random(K = 10, N = nrow(y_sim) * ncol(y_sim))
 # saveRDS(y_folds, file = here("Summer_2025", "log_lik", "folds.RDS"))
 y_folds <- readRDS(file = here("Summer_2025", "log_lik", "folds.RDS"))
