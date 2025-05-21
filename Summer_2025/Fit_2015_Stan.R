@@ -26,3 +26,26 @@ stan_fit_2015 <- mod_2015$sample(data = stan_data,
                                  refresh = 100)
 
 stan_fit_2015$save_object(file = here("stan_models", "2015_cluster_fit.RDS"))
+
+# 
+# fit <- readRDS(here("stan_models", "2015_cluster_fit.RDS"))
+# # 
+# fit$summary(variables = c("eta"))
+# 
+# mcmc_trace(fit$draws(variables = "eta"))
+# 
+# 
+# ppc_2015 <- construct_ppc(fit, y_sim)
+# 
+# ppc_fit_2015 <- plot_ests(ppc_2015$ppc_draws,
+#                           ppc_2015$y_tibble,
+#                           prop_val = 5)
+# ppc_fit_2015 + 
+#   labs(title = "McCormick + Zheng, 2015") 
+# 
+# 
+# 
+# loo_est_2015 <- fit$loo(cores = 4)
+# loo_est_2015
+# 
+# loo_compare(loo_est, loo_est_2015)
