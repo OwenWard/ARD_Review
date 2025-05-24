@@ -1,7 +1,6 @@
 ### May 21 - Do K fold CV for Latent Space Model
 
 
-library(rotasym)
 library(tidyverse)
 library(cmdstanr)
 library(here)
@@ -74,7 +73,7 @@ fit_train <- mod_2015$sample(data = stan_data_train,
                                 iter_warmup = 1000,
                                 parallel_chains = 4,
                                 sig_figs = 15,
-                                refresh = 0)
+                                refresh = 100)
 
 fit_gq <- mod_2015_test$generate_quantities(fit_train,
                                            data = stan_data_test,
