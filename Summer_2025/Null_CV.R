@@ -7,6 +7,7 @@ library(cmdstanr)
 library(here)
 library(bayesplot)
 library(posterior)
+library(loo)
 options(mc.cores = parallel::detectCores())
 
 set.seed(100)
