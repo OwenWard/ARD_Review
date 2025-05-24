@@ -73,10 +73,12 @@ fit_train <- mod_2015$sample(data = stan_data_train,
                                 iter_sampling = 100,
                                 iter_warmup = 100,
                                 parallel_chains = 4,
+                                sig_figs = 15,
                                 refresh = 0)
 
 fit_gq <- mod_2015_test$generate_quantities(fit_train,
                                            data = stan_data_test,
+                                           sig_figs = 15,
                                            seed = 123)
 
 ll_test <- fit_gq$draws(variables = "log_lik") |> 
