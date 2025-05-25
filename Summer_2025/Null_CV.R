@@ -7,6 +7,7 @@ library(cmdstanr)
 library(here)
 library(bayesplot)
 library(posterior)
+library(loo)
 options(mc.cores = parallel::detectCores())
 
 set.seed(100)
@@ -227,7 +228,17 @@ for(k in 1:10){
 saveRDS(zheng_06_log_lik, file = here("Summer_2025", "log_lik",
                                       "zheng_06_log_lik.RDS"))
 
+null_01_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
+            "null_01_log_lik.RDS"))
+null_02_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
+                                       "null_02_log_lik.RDS"))
+zheng_06_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
+                                        "zheng_06_log_lik.RDS"))
 
+(elpd_kfold_null_1 <- elpd(null_01_log_lik))
+(elpd_kfold_null_2 <- elpd(null_02_log_lik))
 (elpd_kfold_zheng <- elpd(zheng_06_log_lik))
+(elpd_kfold_mccormick <- elpd(mccormick_10_log_lik))
 
-loo_compare(elpd_kfold_null_1, elpd_kfold_null_2, elpd_kfold_zheng)
+loo_compare(elpd_kfold_null_1, elpd_kfold_null_2, 
+            elpd_kfold_zheng, elpd_kfold_mccormick)
