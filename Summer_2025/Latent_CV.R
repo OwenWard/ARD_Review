@@ -74,6 +74,8 @@ fit_train <- mod_2015$sample(data = stan_data_train,
                                 parallel_chains = 4,
                                 sig_figs = 15,
                                 refresh = 100)
+fit_train$save_object(file = here("Summer_2025", "log_lik",
+                                  paste0("2015_fit_", k, ".RDS")))
 
 fit_gq <- mod_2015_test$generate_quantities(fit_train,
                                            data = stan_data_test,
