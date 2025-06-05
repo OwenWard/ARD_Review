@@ -49,9 +49,9 @@ generated quantities {
   vector[N] log_lik;
   real curr_log_d = scaled_log_d;
   for (n in 1:N) {
-    y_sim[n] = poisson_log_rng(curr_log_d + scaled_beta[k]);
+    y_sim[n] = poisson_log_rng(curr_log_d + scaled_beta);
     y_sum[n] = sum( y_sim[n] );
-    log_lik[n] = poisson_log_lpmf(y[n] | curr_log_d + scaled_beta[k]);
+    log_lik[n] = poisson_log_lpmf(y[n] | curr_log_d + scaled_beta);
   }
 
 }
