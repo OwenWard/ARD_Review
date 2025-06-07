@@ -46,12 +46,15 @@ model {
 generated quantities {
   array[N] int y_sum;
   array[N, K] int y_sim;
-  vector[N] log_lik;
+  array[N, K] real log_lik;
   real curr_log_d = scaled_log_d;
   for (n in 1:N) {
-    y_sim[n] = poisson_log_rng(curr_log_d + scaled_beta[k]);
+    for(k in 1:K){
+      y_sim[n, k] = poisson_log_rng(curr_log_d + scaled_beta[k]);
+      
+      log_lik[n, k] = poisson_log_lpmf(y[n, k] | curr_log_d + scaled_beta[k]);
+    }
     y_sum[n] = sum( y_sim[n] );
-    log_lik[n] = poisson_log_lpmf(y[n] | curr_log_d + scaled_beta[k]);
   }
 
 }

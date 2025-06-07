@@ -239,6 +239,8 @@ zheng_06_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
 (elpd_kfold_null_2 <- elpd(null_02_log_lik))
 (elpd_kfold_zheng <- elpd(zheng_06_log_lik))
 (elpd_kfold_mccormick <- elpd(mccormick_10_log_lik))
+(elpd_kfold_mccormick_15 <- elpd(mccormick_15_log_lik))
 
 loo_compare(elpd_kfold_null_1, elpd_kfold_null_2, 
-            elpd_kfold_zheng, elpd_kfold_mccormick)
+            elpd_kfold_zheng, elpd_kfold_mccormick,
+            elpd_kfold_mccormick_15)
