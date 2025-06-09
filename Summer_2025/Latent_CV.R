@@ -17,11 +17,22 @@ jobid <- as.numeric(jobid)
 fold_id <- jobid
 
 
-stan_data <- readRDS(here("stan_models", "stan_data_2015.RDS"))
+data <- readRDS(here("Summer_2025", "ard_latent_mod.RDS"))
+stan_data <- list(N = data$n_sample, 
+                  K = data$n_subpop,
+                  y = data$y_sim,
+                  n_known = length(data$known_pops),
+                  idx = data$known_pops,
+                  p = 3,
+                  known_prev = sum(data$true_subpops[data$G1_ind]/data$n_population))
+
+
+# stan_data <- readRDS(here("stan_models", "stan_data_2015.RDS"))
 y_sim <- stan_data$y
 G1_ind <- stan_data$idx
 Pg1 <- stan_data$known_prev
-y_folds <- readRDS(file = here("Summer_2025", "log_lik", "folds.RDS"))
+y_folds <- readRDS(file = here("Summer_2025", "log_lik", "latent_sim_folds.RDS"))
+
 
 ## maybe save these folds to ensure use the same every time
 
@@ -75,7 +86,7 @@ fit_train <- mod_2015$sample(data = stan_data_train,
                                 sig_figs = 15,
                                 refresh = 100)
 fit_train$save_object(file = here("Summer_2025", "log_lik",
-                                  paste0("2015_fit_", k, ".RDS")))
+                                  paste0("latent_2015_fit_", k, ".RDS")))
 
 fit_gq <- mod_2015_test$generate_quantities(fit_train,
                                            data = stan_data_test,
@@ -95,4 +106,4 @@ log_lik_draws    <- ll_test[, good_col_idx, drop = FALSE]   # subset matrix
 
 
 saveRDS(log_lik_draws, file = here("Summer_2025", "log_lik",
-                                     paste0("2015_log_lik_", k, ".RDS")))
+                                     paste0("latent_2015_log_lik_", k, ".RDS")))
