@@ -11,6 +11,7 @@ data {
   int<lower=0, upper=K> n_known;
   array[n_known] int<lower=1, upper=K> idx;
   real<lower=0, upper=1> known_prev;
+  //int<lower=0> N_totalpop;
 }
 
 
@@ -44,6 +45,8 @@ model {
 
 
 generated quantities {
+  //vector[K] size_ests = b*N_totalpop;
+  
   array[N] int y_sum;
   array[N, K] int y_sim;
   vector[N] log_lik;
