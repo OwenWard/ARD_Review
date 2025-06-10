@@ -69,6 +69,38 @@ sim_data <- list(y_sim = y_sim,
 
 saveRDS(sim_data, file = here("Summer_2025", "ard_latent_mod.RDS"))
 
+
+# Read in Data, Plot Model information ------------------------------------
+
+
+
+sim_data <- readRDS(file = here("Summer_2025", "ard_latent_mod.RDS"))
+y <- sim_data$y_sim
+G1_ind <- sim_data$G1_ind
+known_prev <- sum(sim_data$true_subpops[G1_ind])/sim_data$n_population
+true_subpops <- sim_data$true_subpops
+sim_data$n_subpop
+
+
+true_alpha <- sim_data$true_alpha
+
+true_degree <- tibble(alpha = true_alpha) |> 
+  mutate(degree = exp(alpha)) |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  theme_single() +
+  labs(y = element_blank(), x = "Sample Degree")
+
+ggsave(filename = here("Summer_2025", "figures",
+                       "latent_true_degree.png"),
+       plot = true_degree,
+       dpi = 600,
+       height = 5, width = 5)
+
+# Fit first null model ----------------------------------------------------
+
+
+
 stan_data_null <- list(N = nrow(y),
                        K = ncol(y),
                        y = y,
@@ -102,7 +134,7 @@ stan_fit_null_01$draws() |>
 
 hist(samp_degree)
 
-subpop_info <- tibble(subpop = 1:15,
+subpop_info <- tibble(subpop = 1:sim_data$n_subpop,
                       size = true_subpops)
 
 stan_fit_null_01$draws() |> 
