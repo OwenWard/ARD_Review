@@ -78,12 +78,14 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
   ## need to set this value in a better way I think
   max_prop <- min(1, max(true_prop$true_prop) + 0.15)
   
-  final_plot <- ppc_prop |> 
+  final_plot_data <- ppc_prop |> 
     left_join(true_prop) |> 
     arrange(true_prop) |> 
     mutate(index = row_number(),
            count = factor(count,
-                          levels = count_labs)) |>
+                          levels = count_labs))
+  
+  final_plot <- final_plot_data |>
     ggplot(aes(y = true_prop, x = avg)) +
     geom_point() +
     geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.005, alpha = 0.5) +
@@ -99,7 +101,8 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
     theme_bw() +
     NULL
   
-  final_plot
+  return(list( final_plot = final_plot,
+               final_plot_data = final_plot_data ))
 }
 
 
@@ -107,15 +110,15 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
 ## tidyverse equiv for ppc plot
 
 construct_ppc <- function(stan_fit, y_sim){
-  if (class(stan_fit) == "CmdStanModel"){
+  if ("CmdStanModel" %in% class(stan_fit)){
     ysim_draws <- stan_fit$draws() |> 
       posterior::as_draws_df() |>
       dplyr::select(starts_with("y_sim"))
-  } else if (class(stan_fit) == "stanfit" ){
+  } else if ("stanfit" %in% class(stan_fit)){
     ysim_draws <- rstan::As.mcmc.list( stan_fit,
                                 pars = "y_sim" ) %>%
       posterior::as_draws_df() 
-  } else if (class(stan_fit) == "array") ysim_draws <- stan_fit
+  } else if ("draws_df" %in% class(stan_fit)) ysim_draws <- stan_fit
   ## first get the generated quantities of interest here
   
   ppc_y <- ysim_draws |> 
