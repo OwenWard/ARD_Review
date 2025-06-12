@@ -18,6 +18,11 @@ library(MCMCpack)
 source(paste0(getwd(),"/helper/helper_model_checking.R"))
 source(paste0(getwd(),"/helper/helper_plots.R"))
 
+gg_color_hue <- function(n) { 
+  hues = seq(15, 375, length = n + 1) 
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
 ## Load NSUM files from .zip  ---------------------------------------------------
 # accompanies the Maltiel, Raftery, McCormick (2013) paper
 nsum_pkg_path <- paste0(getwd(),"/NSUM/")
@@ -74,10 +79,12 @@ sim.bar <- with(McCarty, nsum.simulate(nindiv_sim, known, unknown, N,
 
 ## True degrees ----------------------------------------------------------------
 
-ggplot(data.frame(x=sim.bar$d),aes(x)) + 
+deg_hist <- ggplot(data.frame(x=sim.bar$d),aes(x)) + 
   geom_histogram() + 
   theme_single() +
-  ylab("") + xlab("Node Degree")
+  ylab("") + xlab("Sample Degree")
+
+deg_hist
 
 # MCMC and Stan setup ----------------------------------------------------------
 
@@ -444,6 +451,42 @@ size_ests_plotdata_zheng  %>%
   labs(y = "Subpopulation", x = "Size" )
 
 
+zheng_subpops_plotdata <- size_ests_plotdata_zheng  %>%
+  arrange(m) %>% # sort subpop.s by posterior median
+  mutate( parameter_sorted = factor(parameter,
+                                    levels = size_ests_plotdata_zheng %>% 
+                                      arrange(m) %>% 
+                                      pull(parameter)) ) %>%
+  mutate( facet_factor = cut(m,quantile(m,probs=facet_quantile_lims),
+                             include.lowest=TRUE,
+                             labels = facet_labs) ) %>%
+  left_join(size_true) %>% 
+  pivot_longer( cols=c(m,true),
+                names_to = "point_type", 
+                values_to = "point_value") %>%
+  mutate( Subpopulation = ifelse( parameter == "unknown",
+                                  "Unknown",
+                                  "Known" ))
+
+zheng_subpops_plot <- zheng_subpops_plotdata %>%
+  ggplot() +
+  geom_segment( aes(x=ll,xend=hh,y=parameter_sorted,yend=parameter_sorted,col=Subpopulation),
+                linewidth = .5 ) +
+  facet_wrap(vars(facet_factor),
+             scales="free") +
+  geom_segment( aes(x=l,xend=h,y=parameter,yend=parameter,col=Subpopulation),
+                linewidth = 2 ) +
+  geom_point( data = zheng_subpops_plotdata %>%
+                filter( point_type == "m" ),
+              aes( x = point_value, y = parameter,col=Subpopulation), size = 3, shape = "|" ) +
+  geom_point( data = zheng_subpops_plotdata %>%
+                filter( point_type != "m" ),
+              aes( x = point_value, y = parameter)) + 
+  bayesplot_theme_get() +
+  theme(legend.position = "bottom") + 
+  labs(y = "Subpopulation", x = "Size" )
+
+
 ### PPC: P(Y_ik = j) -----------------------------------------------------------
 
 ppc_zheng <- construct_ppc(stan_fit_zheng, sim.bar$y)
@@ -501,6 +544,47 @@ modelnames <- rev(c("Erdos Renyi",
                     "Overdispersed",
                     "Barrier Effects (NSUM)"))
 
+## Degree distributions --------------------------------------------------------
+
+degs_all <- data.frame( #true = sim.bar$d,
+                        nsum = rowMeans(mcmc$d.values),
+                        er = rep( exp(summary(stan_fit_null_01)$summary[
+                          "scaled_log_d","mean"]), nindiv_sim),
+                        deg = exp(summary(stan_fit_null_02)$summary[
+                          paste0("scaled_log_d[",1:nindiv_sim,"]"),"mean"]),
+                        overd = exp(summary(stan_fit_zheng)$summary[
+                          paste0("scaled_alpha[",1:nindiv_sim,"]"),"mean"]) )
+
+deg_hist_all <- degs_all %>% 
+  pivot_longer( everything(), values_to = "degree",
+                names_to = "model_abbr" ) %>%
+  mutate( model = factor( model_abbr,
+                          levels = c("nsum","overd","deg","er"),
+                          labels = modelnames )) %>%
+  filter( model_abbr != "er" ) %>%
+  ggplot(aes(degree,col=model)) + 
+  geom_histogram( data = data.frame(degree=sim.bar$d),
+                  aes(degree,y=after_stat(density)),
+                  col="lightgrey",alpha=.1,bins=50) +
+  geom_density( data = data.frame(degree=sim.bar$d,model="Observed"),
+                aes(degree),
+                lty = 2, key_glyph = "path" ) +
+  geom_segment(aes(x = mean(degs_all$er), 
+                   xend = mean(degs_all$er), 
+                   y=0, yend=Inf,
+                   col="Erdos-Renyi")) + 
+  geom_density(key_glyph = "path") + 
+  labs(x="Sample Degree", y="") + 
+  theme_bw() + 
+  scale_color_manual( values=c(gg_color_hue(4),"black")) + 
+  guides(color = guide_legend(title = "Model",
+                              override.aes = 
+                                list(linetype=c(1,1,1,1,2),
+                                     col=c(gg_color_hue(4),"black")) ) ) +
+  theme(legend.position = "bottom")
+
+deg_hist_all
+
 ## Subpop. sizes ---------------------------------------------------------------
 size_ests_plotdata_all <- size_ests_plotdata_nsum %>% 
   mutate( model = "Barrier Effects (NSUM)") %>%
@@ -517,14 +601,14 @@ size_ests_all_plot <- size_ests_plotdata_all %>%
   geom_segment( aes(x=l,xend=h,y=model,yend=model),
                 linewidth = 2 ) +
   geom_point( aes( x = m, y = model,
-                   col=model), size = 2.5 ) +
+                   col=model), size = 3.5 ) +
   geom_vline(xintercept = size_true %>% 
                filter(parameter=="unknown") %>% 
                pull(true), lty=2) +
   #scale_y_discrete()
-  bayesplot_theme_get() +
+  bayesplot_theme_get() + theme(legend.position = "bottom") +
   guides(col=guide_legend(title="Model")) +
-  labs(y = "Subpopulation", x = "Size" )
+  labs(y = "Model", x = "Size" )
 
 size_ests_all_plot
 
@@ -564,10 +648,23 @@ ppc_all_plot
 
 ## Save plots ------------------------------------------------------------------
 
+ggsave("Figures/McCartyData_Degrees_061225.pdf",
+       deg_hist,
+       width = 5, height = 5)
+
+ggsave("Figures/McCartyData_Degrees_Est_061225.pdf",
+       deg_hist_all,
+       width = 5, height = 5)
+
+ggsave("Figures/McCartyData_Subpop_Known_Zheng_061225.pdf",
+       zheng_subpops_plot,
+       width = 10, height = 10)
+
+
 ggsave("Figures/McCartyData_Subpop_Ests_061225.pdf",
        size_ests_all_plot,
-       width = 5, height = 5)
+       width = 8, height = 6)
 
 ggsave("Figures/McCartyData_PPCs_061225.pdf",
        ppc_all_plot,
-       width = 5, height = 5)
+       width = 12, height = 10)
