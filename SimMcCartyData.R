@@ -16,6 +16,7 @@ library(MASS)
 library(MCMCpack)
 
 source(paste0(getwd(),"/helper/helper_model_checking.R"))
+source(paste0(getwd(),"/helper/helper_plots.R"))
 
 ## Load NSUM files from .zip  ---------------------------------------------------
 # accompanies the Maltiel, Raftery, McCormick (2013) paper
@@ -71,6 +72,13 @@ sim.bar <- with(McCarty, nsum.simulate(nindiv_sim, known, unknown, N,
 #           nindiv_sim personal degree sizes (i.e., est. size of ego-network)
 
 
+## True degrees ----------------------------------------------------------------
+
+ggplot(data.frame(x=sim.bar$d),aes(x)) + 
+  geom_histogram() + 
+  theme_single() +
+  ylab("") + xlab("Node Degree")
+
 # MCMC and Stan setup ----------------------------------------------------------
 
 iter_warmup <- 3000
@@ -85,14 +93,12 @@ iter_after_warmup <- 500 # keep this small-ish because we will use all of these
 dat.bar <- sim.bar$y
 start_mcmc <- Sys.time()
 mcmc <- with(McCarty, nsum.mcmc( dat.bar, known, N, model="barrier",
-                                 indices.k = 1:ncol(dat.bar),
+                                 indices.k = ncol(dat.bar),
                                  iterations = iter_after_warmup, 
                                  burnin = iter_warmup_nsum )) # total iter = iterations + burnin
 end_mcmc <- Sys.time()
 print(end_mcmc - start_mcmc) # 35 k total iter => (~1.5min desktop; ~17min laptop)
 # when they fit this model they use floor(d_i) in each iteration
-
-hist(sim.bar$d)
 
 ## view posterior distribution of subpopulation sizes for the first subpopulation
 hist(mcmc$NK.values[1,])
@@ -160,12 +166,10 @@ size_ests_plotdata_nsum %>%
 
 ### PPDraws --------------------------------------------------------------------
 
-ysim_nsum <- array(NA,c(nrow(sim.bar$y),ncol(sim.bar$y),
-                        iter_after_warmup))
+start_nsum_ppds <- Sys.time()
+ysim_nsum <- NULL
 for (i in 1:iter_after_warmup){
-  ysim_nsum[1:nrow(sim.bar$y),
-            1:ncol(sim.bar$y),
-            iter] <- nsum.simulate( nrow(sim.bar$y), 
+  ysim_nsum_i <- nsum.simulate( nrow(sim.bar$y), 
                                 McCarty$known,
                                 mcmc$NK.values[i],
                                 McCarty$N,
@@ -173,16 +177,36 @@ for (i in 1:iter_after_warmup){
                                 mcmc$mu.values[i],
                                 mcmc$sigma.values[i],
                                 mcmc$rho.values[,i] )$y
+  colnames(ysim_nsum_i) <- 1:ncol(sim.bar$y)
+  rownames(ysim_nsum_i) <- 1:nrow(sim.bar$y)
   
+  ysim_nsum_i_long <- ysim_nsum_i %>% 
+    as_tibble() %>% 
+    mutate(node = row_number()) %>% 
+    pivot_longer( !node, 
+                  values_to = "y", 
+                  names_to = "subpop" ) %>%
+    mutate( par = paste0("y_sim[",node,",",subpop,"]"),
+            .draw = i) %>%
+    dplyr::select(par, y, .draw)
+  
+  ysim_nsum <- ysim_nsum %>% 
+    bind_rows(ysim_nsum_i_long)
 }
+end_nsum_ppds <- Sys.time()
+end_nsum_ppds - start_nsum_ppds
 
+ysim_nsum_dfdraws <- ysim_nsum %>%
+  pivot_wider( names_from = par,
+               values_from = y ) %>%
+  posterior::as_draws_df()
 
 ### PPChecks -------------------------------------------------------------------
 
-ppc_nsum <- construct_ppc(ysim_nsum, sim.bar$y)
+ppc_nsum <- construct_ppc( ysim_nsum_dfdraws, sim.bar$y)
 ppc_nsum_plot <- with(ppc_nsum, plot_ests_all( ppc_draws,
                                                    y_tibble ))
-ppc_nsum_plot
+ppc_nsum_plot$final_plot
 
 # Stan models ------------------------------------------------------------------
 
@@ -211,14 +235,11 @@ stan_fit_null_01 <- sampling( mod_null_01,
                       refresh = 100 ) # how often progress is reported
 
 summary( summary(stan_fit_null_01)$summary[,"Rhat"] )
-traceplot(stan_fit_null_01, inc_warmup = FALSE, pars="scaled_log_d" )
+rstan::traceplot(stan_fit_null_01, inc_warmup = FALSE, pars="scaled_log_d" )
 
 ## check the population sizes 
 plot( stan_fit_null_01,
       pars = "scaled_log_d" )
-
-plot( stan_fit_null_01,
-      pars = "size_ests" ) 
 
 ### Subpop. sizes --------------------------------------------------------------
 
@@ -272,7 +293,7 @@ size_ests_plotdata_ER  %>%
 ppc_null_1 <- construct_ppc(stan_fit_null_01, sim.bar$y)
 ppc_null_1_plot <- with(ppc_null_1, plot_ests_all( ppc_draws,
                                                y_tibble ))
-ppc_null_1_plot
+ppc_null_1_plot$final_plot
 
 ## Varying degree --------------------------------------------------------------
 
@@ -291,10 +312,10 @@ stan_fit_null_02 <- sampling( mod_null_02,
 
 summary( summary(stan_fit_null_02)$summary[,"Rhat"] )
 
-traceplot(stan_fit_null_02, inc_warmup = FALSE,
+rstan::traceplot(stan_fit_null_02, inc_warmup = FALSE,
           pars=c("scaled_beta"))
 
-traceplot(stan_fit_null_02, inc_warmup = FALSE,
+rstan::traceplot(stan_fit_null_02, inc_warmup = FALSE,
           pars=c("scaled_log_d[1]",
                  "scaled_log_d[2]"))
 
@@ -350,7 +371,7 @@ size_ests_plotdata_degree  %>%
 ppc_null_2 <- construct_ppc(stan_fit_null_02, sim.bar$y)
 ppc_null_2_plot <- with(ppc_null_2, plot_ests_all( ppc_draws,
                                                    y_tibble ))
-ppc_null_2_plot
+ppc_null_2_plot$final_plot
 
 ## Overdispersed model (Zheng et al., 2006) ------------------------------------
 
@@ -428,7 +449,7 @@ size_ests_plotdata_zheng  %>%
 ppc_zheng <- construct_ppc(stan_fit_zheng, sim.bar$y)
 ppc_zheng_plot <- with(ppc_zheng, plot_ests_all( ppc_draws,
                                                    y_tibble ))
-ppc_zheng_plot
+ppc_zheng_plot$final_plot
 
 # Stansum: Stan version of NSUM ------------------------------------------------
 #   GitHub:  https://github.com/coalesce-lab/stansum/blob/master/src/stan/MaltielBEM_count.stan
@@ -475,13 +496,20 @@ if (tryBem){
 
 # All models -------------------------------------------------------------------
 
+modelnames <- rev(c("Erdos Renyi",
+                    "Varying Degree",
+                    "Overdispersed",
+                    "Barrier Effects (NSUM)"))
+
+## Subpop. sizes ---------------------------------------------------------------
 size_ests_plotdata_all <- size_ests_plotdata_nsum %>% 
   mutate( model = "Barrier Effects (NSUM)") %>%
   bind_rows( size_ests_plotdata_ER %>% mutate( model = "Erdos Renyi" ),
              size_ests_plotdata_degree %>% mutate( model = "Varying Degree"),
-             size_ests_plotdata_zheng %>% mutate( model = "Overdispersed") )
+             size_ests_plotdata_zheng %>% mutate( model = "Overdispersed") ) %>%
+  mutate( model = factor( model, levels = modelnames ) )
 
-size_ests_plotdata_all %>% 
+size_ests_all_plot <- size_ests_plotdata_all %>% 
   filter(parameter=="unknown") %>%
   ggplot() +
   geom_segment( aes(x=ll,xend=hh,y=model,yend=model),
@@ -495,6 +523,51 @@ size_ests_plotdata_all %>%
                pull(true), lty=2) +
   #scale_y_discrete()
   bayesplot_theme_get() +
+  guides(col=guide_legend(title="Model")) +
   labs(y = "Subpopulation", x = "Size" )
 
+size_ests_all_plot
 
+## PPC: P(Y_ik = j) ---------------------------------------------------------------
+
+ppc_all_plotdata <- ppc_nsum_plot$final_plot_data %>%
+  mutate( model = "Barrier Effects (NSUM)") %>%
+  bind_rows( ppc_null_1_plot$final_plot_data %>% mutate( model = "Erdos Renyi" ),
+             ppc_null_2_plot$final_plot_data %>% mutate( model = "Varying Degree" ),
+             ppc_zheng_plot$final_plot_data %>% mutate( model = "Overdispersed" )) %>%
+  mutate( model = factor( model, levels = rev(modelnames) ) )
+
+ppc_all_plotdata_lims <- ppc_all_plotdata %>%
+  group_by(model,count) %>%
+  summarize( square_lim = max(true_prop,avg),
+             ebar_ht = .075*square_lim )
+
+ppc_all_plot <- ppc_all_plotdata %>%
+  filter( count %in% paste0("P(y_ik =",c(0,1,3,5,10),")") ) %>%
+  mutate( covers_true = (true_prop >= lower) & (true_prop <= upper)) %>%
+  left_join(ppc_all_plotdata_lims) %>%
+  ggplot(aes(y = true_prop, x = avg,
+             col = covers_true)) +
+  geom_point() +
+  geom_point(aes(square_lim,square_lim),alpha=0) +
+  geom_errorbarh(aes(xmin = lower, xmax = upper, height = ebar_ht), alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, alpha = 0.25, lty = 2) + #col = "red") +
+  labs(x = "Posterior predictive draws", y = "Observed data",
+       #subtitle = paste0("Prop = ", prop_val)
+  ) +
+  facet_wrap(vars(model,count),scales="free") +
+  theme_bw() + theme(legend.position="bottom",strip.background =element_rect(fill="gray95")) + 
+  guides(col=guide_legend(title="95% Credible Interval Covers the Truth")) +
+  NULL
+
+ppc_all_plot
+
+## Save plots ------------------------------------------------------------------
+
+ggsave("Figures/McCartyData_Subpop_Ests_061225.pdf",
+       size_ests_all_plot,
+       width = 5, height = 5)
+
+ggsave("Figures/McCartyData_PPCs_061225.pdf",
+       ppc_all_plot,
+       width = 5, height = 5)
