@@ -542,7 +542,7 @@ if (tryBem){
 modelnames <- rev(c("Erdos Renyi",
                     "Varying Degree",
                     "Overdispersed",
-                    "Barrier Effects (NSUM)"))
+                    "Barrier Effects\n(NSUM)"))
 
 ## Degree distributions --------------------------------------------------------
 
@@ -587,7 +587,7 @@ deg_hist_all
 
 ## Subpop. sizes ---------------------------------------------------------------
 size_ests_plotdata_all <- size_ests_plotdata_nsum %>% 
-  mutate( model = "Barrier Effects (NSUM)") %>%
+  mutate( model = "Barrier Effects\n(NSUM)") %>%
   bind_rows( size_ests_plotdata_ER %>% mutate( model = "Erdos Renyi" ),
              size_ests_plotdata_degree %>% mutate( model = "Varying Degree"),
              size_ests_plotdata_zheng %>% mutate( model = "Overdispersed") ) %>%
