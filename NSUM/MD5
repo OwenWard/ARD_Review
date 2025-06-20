@@ -1,0 +1,17 @@
+873b1cc27a8383cf6f1ff565b38161aa *DESCRIPTION
+8a93442dd6f29e14dcf89757eee20f07 *NAMESPACE
+5606185f281ec215875ac7eecc30aa0f *R/MCMC_barrier_effect.R
+5a1744954c9e824d1919a8744e9f27e5 *R/MCMC_barrier_transmission_combined.R
+7430b67c5b8dd6d8977013e9e3a9a2f1 *R/MCMC_master.R
+3becd89624a6e8ba75ee97b381f8b402 *R/MCMC_random_degree.R
+bca0b8a1b5b0fcf530971bff08103b9a *R/MCMC_transmission_bias.R
+f3e1177a1b819ca09f3b027d26d8e8d8 *R/killworth.R
+d2d8528f9d4e036f67d6d9e7a4ce6187 *data/Curitiba.RData
+6cc02ad28d0410ebd0b751122e6fc5ce *data/McCarty.RData
+f3f409981c629cbdb5507e9fa447411c *man/Curitiba.Rd
+4f7934e3c4aeb5f70a55f5a73cfdb873 *man/McCarty.Rd
+b311f93da47d487d83d5f170fcfae823 *man/NSUM-package.Rd
+892327e58219a8e1eb358c4272de659b *man/killworth.Rd
+456bd2237a2974614168c3485b187a00 *man/killworth.start.Rd
+5385ab5d76c6d9627c4d2e653ac306b6 *man/nsum.mcmc.Rd
+4d191dc8a7d8eada62d18e27c127a97a *man/nsum.simulate.Rd
