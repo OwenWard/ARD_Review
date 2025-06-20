@@ -11,6 +11,7 @@ data {
   int<lower=0, upper=K> n_known;
   array[n_known] int<lower=1, upper=K> idx;
   real<lower=0, upper=1> known_prev;
+  //int<lower=0> N_totalpop;
 }
 
 
@@ -44,17 +45,16 @@ model {
 
 
 generated quantities {
+  //vector[K] size_ests = b*N_totalpop;
+  
   array[N] int y_sum;
   array[N, K] int y_sim;
   array[N, K] real log_lik;
   real curr_log_d = scaled_log_d;
   for (n in 1:N) {
-    for(k in 1:K){
-      y_sim[n, k] = poisson_log_rng(curr_log_d + scaled_beta[k]);
-      
-      log_lik[n, k] = poisson_log_lpmf(y[n, k] | curr_log_d + scaled_beta[k]);
-    }
+    y_sim[n] = poisson_log_rng(curr_log_d + scaled_beta);
     y_sum[n] = sum( y_sim[n] );
+    log_lik[n] = poisson_log_lpmf(y[n] | curr_log_d + scaled_beta);
   }
 
 }

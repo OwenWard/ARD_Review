@@ -45,6 +45,7 @@ model {
 
 
 
+
 generated quantities {
   array[N] int y_sum;
   array[N, K] int y_sim;

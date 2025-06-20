@@ -59,8 +59,8 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
                  .groups = "drop_last") |> # removes warnings
       group_by(sub_pop_id) |> 
       summarise( avg = mean(prop), 
-                 lower = quantile(prop, 0.025),
-                 upper = quantile(prop, 0.975) ) %>%
+               lower = quantile(prop, 0.025),
+               upper = quantile(prop, 0.975) ) %>%
       mutate( count = count_labs[i] )
     
     ppc_prop <- ppc_prop %>%
@@ -92,7 +92,7 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
     geom_abline(slope = 1, intercept = 0, alpha = 0.25, col = "red") +
     labs(x = "Simulated", y = "Data",
          #subtitle = paste0("Prop = ", prop_val)
-    ) +
+         ) +
     # xlim(c(-0.05, max_prop)) +
     # ylim(c(-0.05, max_prop)) +
     # coord_flip() +
@@ -110,12 +110,14 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
 ## tidyverse equiv for ppc plot
 
 construct_ppc <- function(stan_fit, y_sim){
+
   if ("CmdStanMCMC" %in% class(stan_fit)){
     ysim_draws <- stan_fit$draws() |> 
       posterior::as_draws_df() |>
       dplyr::select(starts_with("y_sim"))
   } else if ("stanfit" %in% class(stan_fit)){
     ysim_draws <- rstan::As.mcmc.list( stan_fit,
+
                                        pars = "y_sim" ) %>%
       posterior::as_draws_df() 
   } else if ("draws_df" %in% class(stan_fit)) ysim_draws <- stan_fit
@@ -140,6 +142,7 @@ construct_ppc <- function(stan_fit, y_sim){
 }
 
 
+
 construct_ppc_cmd <- function(stan_fit, y_sim){
     ysim_draws <- stan_fit$draws() |> 
       posterior::as_draws_df() |>
@@ -162,3 +165,4 @@ construct_ppc_cmd <- function(stan_fit, y_sim){
   
   list(ppc_draws = ppc_y, y_tibble = true_y)
 }
+
