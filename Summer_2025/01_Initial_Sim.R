@@ -37,8 +37,14 @@ n_subpop <- 15   # number of subpops observed
 n_sample <- 1000 # the people where ARD is recorded
 
 perc_subpop <- 0.01  # prevalence of subpop in population, same for all subpops
-perc_subpop <- round(rgamma(n = n_subpop, shape = 1, rate = 10), 3)
+perc_subpop <- round(rgamma(n = n_subpop, shape = 1, rate = 20), 3)/4
 num_subpop <- round(n_population * perc_subpop) # approx size of subpopos in pop
+
+###
+true_subpops <- round(runif(K, min = 2 * n, max = n_population / 20))
+perc_subpop <- true_subpops/n_population
+###
+
 
 mu <- c(0, 0, 1)
 kappa <- 2
@@ -107,6 +113,8 @@ for(k in 1:n_subpop){
   
 }
 
+### TO DO
+## could do this another way, just draw the positions
 
 remaining_greg <- rnorm(n = sum(is.na(all_greg)), mean = gen_greg, sd = sd_greg)
 all_greg[is.na(all_greg)] <- remaining_greg
@@ -195,8 +203,8 @@ plot_subpops
 
 # Specify the Known Populations -------------------------------------------
 
-known_pops <- c(1:5)
-
+known_pops <- c(1:14)
+(Pg1 <- sum(true_subpop_size[known_pops])/n_population)
 # Fit Simple Null Models, with scaling----------------------------------------
 
 
@@ -221,7 +229,7 @@ stan_fit_null_01 <- mod_null_01$sample(data = stan_data_null,
                                        parallel_chains = 4,
                                        refresh = 100)
 
-stan_fit_null_01$summary()
+stan_fit_null_01$summary(variables = c("scaled_beta"))
 mcmc_trace(stan_fit_null_01$draws(), pars = "scaled_log_d")
 
 
@@ -232,7 +240,7 @@ b_draws <- stan_fit_null_01$draws() |>
 
 size_ests <- b_draws * n_population
 head(rowSums(size_ests[, G1_ind]))
-sum(true_subpop_size[1:5])
+sum(true_subpop_size[G1_ind])
 
 ## look at posterior estimates of degree and subpop size
 stan_fit_null_01$draws() |> 
@@ -271,14 +279,19 @@ ppc_null_1 <- construct_ppc(stan_fit_null_01, y_sim)
 (ppc_fit_null_1 <- plot_ests(ppc_null_1$ppc_draws, 
                             ppc_null_1$y_tibble,
                             prop_val = 1))
-
+rm(ppc_null_1)
 ppc_1_null_1 <- ppc_fit_null_1 + 
   labs(title = expression("Proportion of " * y[ik] == 1),
        subtitle = "") +
   theme_single()
 ppc_1_null_1
+## this does make sense because of the common degree
 
-
+ggsave(filename = here("Summer_2025", "figures",
+                       "null_ppc.png"),
+       plot = ppc_1_null_1,
+       dpi = 600,
+       height = 5, width = 5)
 
 # Fit Model 2 with Scaling  -----------------------------------------------
 
@@ -290,12 +303,13 @@ mod_null_02 <- cmdstan_model(stan_file_null_02)
 stan_fit_null_02 <- mod_null_02$sample(data = stan_data_null,
                                        seed = 123,
                                        chains = 4,
-                                       iter_sampling = 4000,
+                                       iter_sampling = 1000,
                                        iter_warmup = 1000,
                                        parallel_chains = 4,
                                        refresh = 100)
 
-stan_fit_null_02$summary(variables = c("scaled_beta", "scaled_log_d[1]",
+stan_fit_null_02$summary(variables = c("scaled_beta",
+                                       "scaled_log_d[1]",
                                        "scaled_log_d[2]"))
 
 ## check the population sizes
@@ -305,7 +319,7 @@ b_draws <- stan_fit_null_02$draws() |>
 
 size_ests <- b_draws * n_population
 head(rowSums(size_ests[, G1_ind]))
-sum(true_subpop_size[1:5])
+sum(true_subpop_size[1:14])
 
 stan_fit_null_02$draws() |> 
   as_draws_df() |> 
@@ -342,7 +356,7 @@ ppc_null_2 <- construct_ppc(stan_fit_null_02, y_sim)
 (ppc_fit_null_2 <- plot_ests(ppc_null_2$ppc_draws, 
                             ppc_null_2$y_tibble,
                             prop_val = 1))
-
+rm(ppc_null_2)
 ppc_1_null_2 <- ppc_fit_null_2 +
   labs(title = expression("Proportion of " * y[ik] == 1),
        subtitle = "") +
@@ -407,7 +421,7 @@ loo_compare(loo_1, loo_2)
 
 ## maybe the fact that loo-cv not reasonable for these models is enough...
 ## need to dig into this a bit more
-
+## do k-fold CV instead
 
 
 
@@ -432,7 +446,18 @@ b_draws <- stan_fit_zheng$draws() |>
 
 size_ests <- exp(b_draws) * n_population
 head(rowSums(size_ests[, G1_ind]))
-sum(true_subpop_size[1:5])
+sum(true_subpop_size[1:14])
+
+
+est_degrees_2006 <- stan_fit_zheng$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("scaled_alpha")) |> 
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("scaled_alpha"),
+               names_to = "node",
+               values_to = "log_estimate") |> 
+  mutate(node = parse_number(node)) |> 
+  mutate(est_degree = exp(log_estimate)) 
 
 ## look at posterior estimates of degree and subpop size
 stan_fit_zheng$draws() |> 
@@ -471,6 +496,18 @@ ppc_zheng <- construct_ppc(stan_fit_zheng, y_sim)
                              ppc_zheng$y_tibble,
                              prop_val = 1))
 
+ppc_plot_zheng <- ppc_fit_zheng + 
+  labs(title = expression("Proportion of " * y[ik] == 1),
+       subtitle = "") +
+  theme_single()
+
+ggsave(filename = here("Summer_2025", "figures",
+                       "2006_ppc.png"),
+       plot = ppc_plot_zheng,
+       dpi = 600,
+       height = 5, width = 5)
+
+rm(ppc_zheng)
 loo_est <- stan_fit_zheng$loo(cores = 4)
 ## these look good, which means we can use it for this data!!! (hopefully)
 
@@ -521,9 +558,9 @@ for(i in 1:num_alters){
 
 ## could potentially use this beta, assuming each supop 
 ## equally spread across the ego groups, will give the right subpop proportions
-# for(i in 1:n_subpop){
-#   beta_sim[, i] <- rep(true_subpop_size[i]/(n_population), num_egos)
-# }
+for(i in 1:n_subpop){
+  beta_sim[, i] <- rep(true_subpop_size[i]/(n_population), num_egos)
+}
 
 
 mix_data_stan <- list(E = num_egos,
@@ -580,6 +617,7 @@ ppc_2010 <- construct_ppc(stan_fit_2010, y_sim)
 ppc_fit_2010 <- plot_ests(ppc_2010$ppc_draws,
                           ppc_2010$y_tibble,
                           prop_val = 1)
+rm(ppc_2010)
 ppc_fit_2010 + 
   labs(title = "McCormick et al, 2010") 
 
@@ -591,10 +629,8 @@ stan_fit_2010$summary(variables = c("M")) |> print(n = 36)
 ## this is it, from stan
 mix_data_stan$Beta
     
-
 loo_est_2010 <- stan_fit_2010$loo(cores = 4)
 loo_est_2010
-
 
 loo_compare(loo_est, loo_est_2010)
 
@@ -784,3 +820,205 @@ for(i in 1:num_pars){
 }
 
 summary(par_rhat)
+
+
+
+# Stan Version of McCormick and Zheng 2015 --------------------------------
+
+
+stan_data <- list(N = nrow(y_sim),
+                  K = ncol(y_sim),
+                  y = y_sim,
+                  n_known = length(G1_ind),
+                  idx = G1_ind,
+                  known_prev = Pg1, 
+                  p = 3)
+saveRDS(stan_data, file = here("stan_models/stan_data_2015.RDS"))
+
+
+## not run locally, extremely slow
+# stan_file_2015 <- here("stan_models", "mc_cormick_and_zheng_2015.stan")
+# mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
+# 
+# stan_fit_2015 <- mod_2015$sample(data = stan_data,
+#                                  seed = 123,
+#                                  chains = 4,
+#                                  iter_sampling = 1000,
+#                                  iter_warmup = 1000,
+#                                  parallel_chains = 4,
+#                                  refresh = 100)
+
+
+fit <- readRDS(here("stan_models", "2015_cluster_fit.RDS"))
+
+fit$summary(variables = c("eta"))
+mcmc_trace(fit$draws(variables = "eta"))
+
+
+est_degrees_2015 <- fit$draws() |> 
+  as_draws_df() |> 
+  dplyr::select(starts_with("scaled_alpha")) |> 
+  mutate(draw = row_number()) |> 
+  pivot_longer(cols = starts_with("scaled_alpha"),
+               names_to = "node",
+               values_to = "log_estimate") |> 
+  mutate(node = parse_number(node)) |> 
+  mutate(est_degree = exp(log_estimate)) 
+
+est_degrees_2015 |> 
+  ggplot(aes(est_degree)) +
+  geom_histogram() +
+  labs(title = "Posterior Estimates",
+       subtitle = "2015 Model")
+
+true_deg |> 
+  ggplot(aes(degree)) +
+  geom_histogram() +
+  labs(title = "True Degree Distribution")
+
+ppc_2015 <- construct_ppc(fit, y_sim)
+ppc_fit_2015 <- plot_ests(ppc_2015$ppc_draws,
+                          ppc_2015$y_tibble,
+                          prop_val = 1)
+
+ppc_plot_2015 <- ppc_fit_2015 + 
+  labs(title = expression("Proportion of " * y[ik] == 1),
+       subtitle = "") +
+  theme_single()
+
+ggsave(filename = here("Summer_2025", "figures",
+                       "2015_ppc.png"),
+       plot = ppc_plot_2015,
+       dpi = 600,
+       height = 5, width = 5)
+
+
+rm(ppc_2015)
+ppc_fit_2015 + 
+  labs(title = "McCormick + Zheng, 2015") 
+
+loo_est_2015 <- fit$loo(cores = 4)
+loo_est_2015
+
+loo_compare(loo_est, loo_est_2015)
+loo_compare(loo_est_2015, loo_est_2010, loo_est)
+## clearly picks the true model as the best here, followed by 2006 model
+
+
+
+
+# Plots for Paper/Talk -----------------------------------------------
+
+deg_plot <- bind_rows(est_degrees_2006 |> 
+                        rename(degree = est_degree) |> 
+                        mutate(model = "Zheng (2006)"),
+                      est_degrees_2015 |> 
+                        rename(degree = est_degree) |> 
+                        mutate(model = "McCormick (2015)"),
+                      true_deg) |> 
+  mutate(model = factor(model, levels = c("Zheng (2006)", "McCormick (2015)",
+                                          "True Degree"))) |> 
+  ggplot(aes(x = degree, color = model)) +
+  # geom_density(size = 1, key_glyph = "path") +
+  stat_density(aes(y = ..scaled..), geom = "line",
+               key_glyph = "path",
+               position = "identity", linewidth = 1.05) +
+  guides(color = guide_legend(override.aes = list(fill = NA)),
+         override.aes = list(linetype = 1, size = 1.5)) +
+  labs(color = "", x = "Degree", y = "") +
+  scale_x_continuous(expand = c(0, 5),
+                     limits = c(0, 750)) +
+  theme_single_legend() 
+
+deg_plot
+
+
+ggsave(filename = here("Summer_2025", "figures",
+                       "2006_2015_est_degs.png"),
+       plot = deg_plot,
+       dpi = 600,
+       height = 5, width = 7)
+
+
+
+
+
+
+# K-Fold CV ---------------------------------------------------------------
+
+
+
+## do k-fold instead
+## https://mc-stan.org/loo/articles/loo2-elpd.html#holdout-validation
+kfold_null_2 <- kfold(stan_fit_null_02, K = 10)
+
+temp <- stan_fit_zheng$draws(variables = c("log_lik")) |> as_draws_matrix()
+## this is kind of what we want, just need to make sure to 
+## fill in the right columns in the overall log-likelihood matrix
+## and also do it for each individual entry in the 2 null models
+
+## implement this for the simple null model first of all
+
+y_folds <- kfold_split_random(K = 10, N = nrow(y_sim))
+y_folds
+
+
+null_01_test <- cmdstan_model(here("stan_models/", "null_model_01_gq.stan"))
+num_data <- 15000
+sample_size <- num_data/10
+null_01_log_lik <- matrix(NA, nrow = 4000, ncol = 15000)
+
+for(k in 1:10){
+  train_y <- y_sim[y_folds != k, ]
+  test_y <- y_sim[y_folds == k, ]
+  stan_data_train <- list(N = nrow(train_y),
+                          K = ncol(train_y),
+                          y = train_y,
+                          n_known = length(G1_ind),
+                          idx = G1_ind,
+                          known_prev = Pg1)
+  stan_data_test <- list(N = nrow(test_y),
+                         K = ncol(test_y),
+                         y = test_y,
+                         n_known = length(G1_ind),
+                         idx = G1_ind,
+                         known_prev = Pg1)
+  fit_train <- mod_null_01$sample(data = stan_data_train,
+                                  seed = 123,
+                                  chains = 4,
+                                  iter_sampling = 100,
+                                  iter_warmup = 100,
+                                  parallel_chains = 4,
+                                  refresh = 100)
+  
+  fit_gq <- null_01_test$generate_quantities(fit_train,
+                                             data = stan_data_test,
+                                             seed = 123)
+  log_lik_draws <- fit_gq$draws(variables = "log_lik") |> 
+    as_draws_matrix()
+  null_01_log_lik[, (sample_size*(k-1)+1):(k * sample_size)] <- log_lik_draws
+  ## if I just combine these stacked column after column, they won't be in the
+  ## same order as originally but will be consistent across all the folds
+  ## (if I use the same folds)
+}
+
+
+G1_ind <- known_pops
+stan_data_null <- list(N = nrow(y_sim),
+                       K = ncol(y_sim),
+                       y = y_sim,
+                       n_known = length(G1_ind),
+                       idx = G1_ind,
+                       known_prev = Pg1)
+
+stan_file_null_01 <- here("stan_models", "null_model_01_scaled.stan")
+
+mod_null_01 <- cmdstan_model(stan_file_null_01)
+
+stan_fit_null_01 <- mod_null_01$sample(data = stan_data_null,
+                                       seed = 123,
+                                       chains = 4,
+                                       iter_sampling = 1000,
+                                       iter_warmup = 1000,
+                                       parallel_chains = 4,
+                                       refresh = 100)

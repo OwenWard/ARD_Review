@@ -91,7 +91,7 @@ transformed parameters {
 // The model to be estimated..
 model {
 profile("priors") {
-  xi ~ gamma(2, 1); // setting this for now
+  xi ~ gamma(2, 1);
   eta ~ gamma(2, 1);
   sigma_beta ~ normal(0, 5);
   sigma_alpha ~ normal(0, 5);
