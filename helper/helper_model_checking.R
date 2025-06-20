@@ -110,13 +110,15 @@ plot_ests_all <- function(ppc_y, true_y, prop_vals = 0:10) {
 ## tidyverse equiv for ppc plot
 
 construct_ppc <- function(stan_fit, y_sim){
-  if ("CmdStanModel" %in% class(stan_fit)){
+
+  if ("CmdStanMCMC" %in% class(stan_fit)){
     ysim_draws <- stan_fit$draws() |> 
       posterior::as_draws_df() |>
       dplyr::select(starts_with("y_sim"))
   } else if ("stanfit" %in% class(stan_fit)){
     ysim_draws <- rstan::As.mcmc.list( stan_fit,
-                                pars = "y_sim" ) %>%
+
+                                       pars = "y_sim" ) %>%
       posterior::as_draws_df() 
   } else if ("draws_df" %in% class(stan_fit)) ysim_draws <- stan_fit
   ## first get the generated quantities of interest here
@@ -138,3 +140,29 @@ construct_ppc <- function(stan_fit, y_sim){
   
   list(ppc_draws = ppc_y, y_tibble = true_y)
 }
+
+
+
+construct_ppc_cmd <- function(stan_fit, y_sim){
+    ysim_draws <- stan_fit$draws() |> 
+      posterior::as_draws_df() |>
+      dplyr::select(starts_with("y_sim"))
+  
+  ppc_y <- ysim_draws |> 
+    mutate(draw = row_number()) |> 
+    pivot_longer(cols = starts_with("y_sim"), values_to = "count") |> 
+    mutate(node_id = as.numeric(str_extract(name, pattern = "\\d+")),
+           sub_pop_id = str_extract(name, pattern = "\\d+]"),
+           sub_pop_id = as.numeric(str_replace(sub_pop_id, "\\]", ""))) 
+  
+  true_y_mat <- y_sim
+  
+  matrix_df <- as.data.frame(as.table(true_y_mat))
+  colnames(matrix_df) <- c("node_id", "sub_pop_id", "count")
+  matrix_df$node_id <- as.numeric(matrix_df$node_id)
+  matrix_df$sub_pop_id <- as.numeric(matrix_df$sub_pop_id)
+  true_y <- as_tibble(matrix_df)
+  
+  list(ppc_draws = ppc_y, y_tibble = true_y)
+}
+

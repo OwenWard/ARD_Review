@@ -49,7 +49,7 @@ generated quantities {
   
   array[N] int y_sum;
   array[N, K] int y_sim;
-  vector[N] log_lik;
+  array[N, K] real log_lik;
   real curr_log_d = scaled_log_d;
   for (n in 1:N) {
     y_sim[n] = poisson_log_rng(curr_log_d + scaled_beta);
