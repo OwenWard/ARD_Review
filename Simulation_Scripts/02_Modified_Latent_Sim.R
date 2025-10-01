@@ -204,15 +204,15 @@ ppc_1_plot <- with(ppc_null_1, plot_ests_all(ppc_null_1$ppc_draws,
 #                              prop_val = 1))
 
 rm(ppc_null_1)
-# ppc_1_null_1 <- ppc_fit_null_1 + 
-#   labs(title = expression("Proportion of " * y[ik] == 1),
-#        subtitle = "") +
-#   theme_single()
-# ppc_1_null_1
-# 
-# ppc_plot_null_1 <- plot_ests_all(ppc_y = ppc_null_1$ppc_draws,
-#               true_y = ppc_null_1$y_tibble,
-#               prop_vals = c(0, 1, 3, 5, 10))
+ppc_1_null_1 <- ppc_fit_null_1 +
+  labs(title = expression("Proportion of " * y[ik] == 1),
+       subtitle = "") +
+  theme_single()
+ppc_1_null_1
+
+ppc_plot_null_1 <- plot_ests_all(ppc_y = ppc_null_1$ppc_draws,
+              true_y = ppc_null_1$y_tibble,
+              prop_vals = c(0, 1, 3, 5, 10))
 
 
 # y_vals <- c(0, 1, 3, 5, 10)
@@ -259,7 +259,7 @@ rm(ppc_null_1)
 
 ggsave(filename = here("Summer_2025", "figures",
                        "latent_ppc_1.png"),
-       plot = ppc_plot_null_1,
+       plot = ppc_plot_null_1$final_plot,
        dpi = 600,
        height = 5, width = 10)
 
@@ -340,7 +340,7 @@ rm(ppc_null_2)
 
 ggsave(filename = here("Summer_2025", "figures",
                        "latent_ppc_2.png"),
-       plot = ppc_plot_null_2,
+       plot = ppc_plot_null_2$final_plot,
        dpi = 600,
        height = 5, width = 10)
 
@@ -477,11 +477,11 @@ ppc_plot_zheng <- plot_ests_all(ppc_y = ppc_zheng$ppc_draws,
                                  prop_vals = c(0, 1, 3, 5, 10))
 
 rm(ppc_zheng)
-# ggsave(filename = here("Summer_2025", "figures",
-#                        "latent_ppc_zheng.png"),
-#        plot = ppc_plot_zheng,
-#        dpi = 600,
-#        height = 5, width = 10)
+ggsave(filename = here("Summer_2025", "figures",
+                       "latent_ppc_zheng.png"),
+       plot = ppc_plot_zheng$final_plot,
+       dpi = 600,
+       height = 5, width = 10)
 
 
 

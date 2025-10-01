@@ -103,7 +103,7 @@ profile("likelihood"){
   for(n in 1:N){
     for(k in 1:K){
       real den_term = sqrt(xi ^2 +  eta[k]^2 + 2 * xi * eta[k] *
-                            theta[n, k]);
+                            dclip[n, k]);
       // real den_term = 1;
       real log_num = num_part1 + num_const_eta[k];//log_vmf_norm(p, eta[k]);
       real log_den = den_part1 + log_vmf_norm(p, den_term);
