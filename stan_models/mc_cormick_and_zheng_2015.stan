@@ -95,8 +95,8 @@ profile("priors") {
   eta ~ gamma(2, 1);
   sigma_beta ~ normal(0, 5);
   sigma_alpha ~ normal(0, 5);
-  alpha ~ normal(mu_alpha, sigma_alpha);
-  beta ~ normal(mu_beta, sigma_beta); 
+  alpha ~ normal(0, sigma_alpha);
+  beta ~ normal(0, sigma_beta); 
 }
 profile("likelihood"){
 
@@ -125,7 +125,7 @@ generated quantities {
   for (n in 1:N) {
     for (k in 1:K) {
       real den_term = sqrt(xi ^2 +  eta[k]^2 + 2 * xi * eta[k] *
-                            theta[n, k]);
+                            dclip[n, k]);
       real log_num = num_part1 + num_const_eta[k];//log_vmf_norm(p, eta[k]);
       real log_den = den_part1 + log_vmf_norm(p, den_term);
       real gamma_ik = exp(log_num - log_den);
