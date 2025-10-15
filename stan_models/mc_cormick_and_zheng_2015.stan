@@ -99,8 +99,8 @@ transformed parameters {
 // The model to be estimated..
 model {
 profile("priors") {
-  xi ~ gamma(2, 1);
-  eta ~ gamma(2, 1);
+  xi ~ gamma(0.5, 0.5);
+  eta ~ gamma(5, 0.1);
   sigma_beta ~ normal(0, 5);
   sigma_alpha ~ normal(0, 5);
   alpha ~ normal(0, sigma_alpha);
