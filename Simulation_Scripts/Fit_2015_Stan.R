@@ -11,7 +11,7 @@ options(mc.cores = parallel::detectCores())
 theme_set(theme_bw())
 
 
-data <- readRDS(here("Summer_2025", "ard_latent_mod.RDS"))
+data <- readRDS(here("Summer_2025", "ard_latent_mod_new.RDS"))
 stan_data <- list(N = data$n_sample, 
                   K = data$n_subpop,
                   y = data$y_sim,
@@ -32,7 +32,7 @@ stan_fit_2015 <- mod_2015$sample(data = stan_data,
                                  refresh = 100)
 
 stan_fit_2015$save_object(file = here("stan_models",
-                                      "ard_latent_2015_cluster_fit.RDS"))
+                                      "ard_latent_2015_cluster_fit_new.RDS"))
 
 # 
 # fit <- readRDS(here("stan_models", "2015_cluster_fit.RDS"))
