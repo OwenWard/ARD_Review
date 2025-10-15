@@ -28,7 +28,9 @@ true_subpops <- round(runif(n_subpop, min = n_sample/5, max = n_population / 20)
 perc_subpop <- true_subpops/n_population
 ###
 
-subpop_centers <- r_vMF(n = n_subpop, mu = c(1, 0, 0), kappa = 0.5)
+subpop_centers <- rbind(
+  c(0, 0, 1),   # north pole
+  c(0, 0, -1), r_vMF(n = n_subpop - 2, mu = c(1, 0, 0), kappa = 0.5))
 
 xi <- 2.5
 eta_vec <- rgamma(n = n_subpop, shape = 1, rate = 1)
@@ -68,14 +70,14 @@ sim_data <- list(y_sim = y_sim,
                  G1_ind = G1_ind,
                  true_subpops = true_subpops)
 
-saveRDS(sim_data, file = here("Summer_2025", "ard_latent_mod.RDS"))
+saveRDS(sim_data, file = here("Summer_2025", "ard_latent_mod_new.RDS"))
 
 
 # Read in Data, Plot Model information ------------------------------------
 
 
 
-sim_data <- readRDS(file = here("Summer_2025", "ard_latent_mod.RDS"))
+sim_data <- readRDS(file = here("Summer_2025", "ard_latent_mod_new.RDS"))
 y <- sim_data$y_sim
 G1_ind <- sim_data$G1_ind
 known_prev <- sum(sim_data$true_subpops[G1_ind])/sim_data$n_population
@@ -420,15 +422,15 @@ head(rowSums(size_ests[, G1_ind]))
 sum(true_subpops[1:14])
 
 
-# est_degrees_2006 <- stan_fit_zheng$draws() |> 
-#   as_draws_df() |> 
-#   dplyr::select(starts_with("scaled_alpha")) |> 
-#   mutate(draw = row_number()) |> 
-#   pivot_longer(cols = starts_with("scaled_alpha"),
-#                names_to = "node",
-#                values_to = "log_estimate") |> 
-#   mutate(node = parse_number(node)) |> 
-#   mutate(est_degree = exp(log_estimate)) 
+est_degrees_2006 <- stan_fit_zheng$draws() |>
+  as_draws_df() |>
+  dplyr::select(starts_with("scaled_alpha")) |>
+  mutate(draw = row_number()) |>
+  pivot_longer(cols = starts_with("scaled_alpha"),
+               names_to = "node",
+               values_to = "log_estimate") |>
+  mutate(node = parse_number(node)) |>
+  mutate(est_degree = exp(log_estimate))
 
 ## look at posterior estimates of degree and subpop size
 # stan_fit_zheng$draws() |> 
@@ -490,15 +492,15 @@ ggsave(filename = here("Summer_2025", "figures",
 stan_fit_2015 <- readRDS(file = here("stan_models",
                                       "ard_latent_2015_cluster_fit.RDS"))
 
-# est_degrees_2015 <- stan_fit_2015$draws() |> 
-#   as_draws_df() |> 
-#   dplyr::select(starts_with("scaled_alpha")) |> 
-#   mutate(draw = row_number()) |> 
-#   pivot_longer(cols = starts_with("scaled_alpha"),
-#                names_to = "node",
-#                values_to = "log_estimate") |> 
-#   mutate(node = parse_number(node)) |> 
-#   mutate(est_degree = exp(log_estimate)) 
+est_degrees_2015 <- stan_fit_2015$draws() |>
+  as_draws_df() |>
+  dplyr::select(starts_with("scaled_alpha")) |>
+  mutate(draw = row_number()) |>
+  pivot_longer(cols = starts_with("scaled_alpha"),
+               names_to = "node",
+               values_to = "log_estimate") |>
+  mutate(node = parse_number(node)) |>
+  mutate(est_degree = exp(log_estimate))
 
 stan_fit_2015$draws() |> 
   as_draws_df() |> 
