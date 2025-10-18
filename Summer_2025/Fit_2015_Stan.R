@@ -19,8 +19,8 @@ stan_data <- list(N = data$n_sample,
                   idx = data$known_pops,
                   p = 3,
                   known_prev = sum(data$true_subpops[data$G1_ind]/data$n_population),
-                  xi = xi, 
-                  eta = eta_vec)
+                  xi = data$xi, 
+                  eta = data$eta_vec)
 
 stan_file_2015 <- here("stan_models", "mc_cormick_and_zheng_2015.stan")
 mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
