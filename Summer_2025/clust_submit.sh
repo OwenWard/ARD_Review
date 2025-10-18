@@ -4,10 +4,10 @@
 #SBATCH --mem-per-cpu 6000
 #SBATCH -c 8
 ##SBATCH -t 1200:00
-#SBATCH -t 60:00
+#SBATCH -t 900:00
 #SBATCH -J fit_latent
 ##SBATCH -J lat_cv_80
-#SBATCH -a 1-10
+##SBATCH -a 1-10
 #SBATCH --mail-user=oward@sfu.ca
 #SBATCH --mail-type=ALL
 
