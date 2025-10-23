@@ -18,9 +18,12 @@ stan_data <- list(N = data$n_sample,
                   n_known = length(data$known_pops),
                   idx = data$known_pops,
                   p = 3,
-                  known_prev = sum(data$true_subpops[data$G1_ind]/data$n_population),
+                  known_prev = sum(data$true_subpops[data$G1_ind]/data$n_population))#,
                   xi = data$xi, 
-                  eta = data$eta)
+                  eta = data$eta,
+                  z = sample_pos,
+                  nu = subpop_centers,
+                  beta = log(perc_subpop))
 
 stan_file_2015 <- here("stan_models", "mc_cormick_and_zheng_2015.stan")
 mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
@@ -28,8 +31,8 @@ mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
 stan_fit_2015 <- mod_2015$sample(data = stan_data,
                                  seed = 123,
                                  chains = 4,
-                                 iter_sampling = 100,
-                                 iter_warmup = 100,
+                                 iter_warmup = 1000,
+				 iter_sampling = 1000,
                                  parallel_chains = 4,
                                  refresh = 100)
 

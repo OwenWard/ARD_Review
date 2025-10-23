@@ -42,20 +42,23 @@ data {
   int<lower=0, upper=K> n_known;
   array[n_known] int<lower=1, upper=K> idx;
   real<lower=0, upper=1> known_prev;
-  vector<lower=0>[K] eta;
-  real<lower=0> xi;
+  // vector<lower=0>[K] eta;
+  // real<lower=0> xi;
+  // array[N] unit_vector[p] z;
+  // array[K] unit_vector[p] nu;
+  // vector[K] beta;
 }
 
 
 parameters {
-  real mu_alpha;
-  real mu_beta;
+  // real mu_alpha;
+  // real mu_beta;
   real<lower=0> sigma_alpha;
   real<lower=0> sigma_beta;
   vector[N] alpha;
   vector[K] beta;
-  // vector<lower=0>[K] eta;
-  // real<lower=0> xi;
+  vector<lower=0>[K] eta;
+  real<lower=0> xi;
   array[N] unit_vector[p] z;
   array[K-2] unit_vector[p] nu_free;
 }
@@ -77,6 +80,8 @@ transformed parameters {
   // TO DO, modify for different notation here (b vs beta)
   scaled_alpha = alpha + C;
   scaled_beta = beta - C;
+  scaled_beta = beta;
+  scaled_alpha = alpha;
   vector[K] num_const_eta;
   vector[K] den_const_eta;
   for(k in 1:K){
@@ -101,12 +106,12 @@ transformed parameters {
 // The model to be estimated..
 model {
 profile("priors") {
-  // xi ~ gamma(0.5, 0.5);
-  // eta ~ gamma(5, 0.1);
+  xi ~ gamma(0.5, 0.5);
+  eta ~ gamma(5, 0.1);
   sigma_beta ~ normal(0, 5);
   sigma_alpha ~ normal(0, 5);
   alpha ~ normal(0, sigma_alpha);
-  beta ~ normal(0, sigma_beta); 
+  beta ~ normal(0, sigma_beta);
 }
 profile("likelihood"){
 
