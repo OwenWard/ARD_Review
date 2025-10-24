@@ -31,10 +31,10 @@ mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
 stan_fit_2015 <- mod_2015$sample(data = stan_data,
                                  seed = 123,
                                  chains = 4,
-                                 iter_sampling = 500,
-                                 iter_warmup = 100,
+                                 iter_warmup = 1000,
+				 iter_sampling = 1000,
                                  parallel_chains = 4,
-                                 refresh = 50)
+                                 refresh = 100)
 
 stan_fit_2015$save_object(file = here("stan_models",
                                       "ard_latent_2015_cluster_fit_checking.RDS"))
