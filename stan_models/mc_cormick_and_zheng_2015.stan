@@ -60,19 +60,19 @@ parameters {
   vector<lower=0>[K] eta;
   real<lower=0> xi;
   array[N] unit_vector[p] z;
-  array[K-2] unit_vector[p] nu_free;
+  array[K] unit_vector[p] nu;
 }
 
 
 transformed parameters {
-  array[K] unit_vector[p] nu;
-  // Fixed poles
-  nu[1] = [0, 0, 1]';   // north pole
-  nu[2] = [0, 0, -1]';  // south pole
-
-  // Fill in the rest
-  for (i in 3:K)
-    nu[i] = nu_free[i - 2];
+  // array[K] unit_vector[p] nu;
+  // // Fixed poles
+  // nu[1] = [0, 0, 1]';   // north pole
+  // nu[2] = [0, 0, -1]';  // south pole
+  // 
+  // // Fill in the rest
+  // for (i in 3:K)
+  //   nu[i] = nu_free[i - 2];
   vector[K] scaled_beta;
   vector[N] scaled_alpha;
   real C;
