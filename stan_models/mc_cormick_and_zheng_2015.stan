@@ -80,8 +80,6 @@ transformed parameters {
   // TO DO, modify for different notation here (b vs beta)
   scaled_alpha = alpha + C;
   scaled_beta = beta - C;
-  scaled_beta = beta;
-  scaled_alpha = alpha;
   vector[K] num_const_eta;
   vector[K] den_const_eta;
   for(k in 1:K){
