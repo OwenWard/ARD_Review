@@ -17,7 +17,7 @@ jobid <- as.numeric(jobid)
 fold_id <- jobid
 
 
-data <- readRDS(here("Summer_2025", "ard_latent_mod_final.RDS"))
+data <- readRDS(here("Simulation_Scripts", "ard_latent_mod.RDS"))
 stan_data <- list(N = data$n_sample, 
                   K = data$n_subpop,
                   y = data$y_sim,
@@ -86,7 +86,7 @@ fit_train <- mod_2015$sample(data = stan_data_train,
                                 sig_figs = 15,
                                 refresh = 100)
 fit_train$save_object(file = here("Summer_2025", "log_lik",
-                                  paste0("latent_2015_fit_", k, ".RDS")))
+                                  paste0("latent_2015_fit_", k, "_oct_30.RDS")))
 
 fit_gq <- mod_2015_test$generate_quantities(fit_train,
                                            data = stan_data_test,
@@ -106,4 +106,4 @@ log_lik_draws    <- ll_test[, good_col_idx, drop = FALSE]   # subset matrix
 
 
 saveRDS(log_lik_draws, file = here("Summer_2025", "log_lik",
-                                     paste0("latent_2015_log_lik_", k, ".RDS")))
+                                     paste0("latent_2015_log_lik_", k, "_oct_30.RDS")))

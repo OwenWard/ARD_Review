@@ -7,13 +7,13 @@ library(cmdstanr)
 library(here)
 library(bayesplot)
 library(posterior)
-library(loo)
+#library(loo)
 options(mc.cores = parallel::detectCores())
 
 set.seed(100)
 
 
-data <- readRDS(here("Summer_2025", "ard_latent_mod_final.RDS"))
+data <- readRDS(here("Simulation_Scripts", "ard_latent_mod.RDS"))
 stan_data <- list(N = data$n_sample, 
                   K = data$n_subpop,
                   y = data$y_sim,
@@ -94,7 +94,7 @@ for(k in 1:10){
 
 
 saveRDS(null_01_log_lik, file = here("Summer_2025", "log_lik",
-                                     "latent_null_01_log_lik.RDS"))
+                                     "latent_null_01_log_lik_oct_30.RDS"))
 
 
 
@@ -162,7 +162,7 @@ for(k in 1:10){
 
 
 saveRDS(null_02_log_lik, file = here("Summer_2025", "log_lik",
-                                     "latent_null_02_log_lik.RDS"))
+                                     "latent_null_02_log_lik_oct_30.RDS"))
 
 
 (elpd_kfold_null_1 <- elpd(null_01_log_lik))
@@ -234,14 +234,14 @@ for(k in 1:10){
 
 
 saveRDS(zheng_06_log_lik, file = here("Summer_2025", "log_lik",
-                                      "latent_zheng_06_log_lik.RDS"))
+                                      "latent_zheng_06_log_lik_oct_30.RDS"))
 
 null_01_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
-            "latnet_null_01_log_lik.RDS"))
+            "latnet_null_01_log_lik_oct_30.RDS"))
 null_02_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
-                                       "latnet_null_02_log_lik.RDS"))
+                                       "latnet_null_02_log_lik_oct_30.RDS"))
 zheng_06_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
-                                        "zheng_06_log_lik.RDS"))
+                                        "zheng_06_log_lik_oct_30.RDS"))
 
 (elpd_kfold_null_1 <- elpd(null_01_log_lik))
 (elpd_kfold_null_2 <- elpd(null_02_log_lik))
