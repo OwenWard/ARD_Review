@@ -28,9 +28,7 @@ true_subpops <- round(runif(n_subpop, min = n_sample/5, max = n_population / 20)
 perc_subpop <- true_subpops/n_population
 ###
 
-subpop_centers <- rbind(
-  c(0, 0, 1),   # north pole
-  c(0, 0, -1), r_vMF(n = n_subpop - 2, mu = c(1, 0, 0), kappa = 0.5))
+subpop_centers <- r_vMF(n = n_subpop, mu = c(1, 0, 0), kappa = 0.5)
 
 xi <- 2.5
 eta_vec <- rgamma(n = n_subpop, shape = 1, rate = 1)
@@ -68,16 +66,18 @@ sim_data <- list(y_sim = y_sim,
                  true_alpha = alpha,
                  known_pops = known_pops,
                  G1_ind = G1_ind,
-                 true_subpops = true_subpops)
+                 true_subpops = true_subpops,
+                 xi = xi, 
+                 eta = eta_vec)
 
-saveRDS(sim_data, file = here("Summer_2025", "ard_latent_mod_new.RDS"))
+saveRDS(sim_data, file = here("Summer_2025", "ard_latent_mod.RDS"))
 
 
 # Read in Data, Plot Model information ------------------------------------
 
 
 
-sim_data <- readRDS(file = here("Summer_2025", "ard_latent_mod_new.RDS"))
+sim_data <- readRDS(file = here("Simulation_Scripts", "ard_latent_mod.RDS"))
 y <- sim_data$y_sim
 G1_ind <- sim_data$G1_ind
 known_prev <- sum(sim_data$true_subpops[G1_ind])/sim_data$n_population
@@ -95,7 +95,7 @@ true_degree <- tibble(alpha = true_alpha) |>
   theme_single() +
   labs(y = element_blank(), x = "Sample Degree")
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_true_degree.png"),
        plot = true_degree,
        dpi = 600,
@@ -131,7 +131,7 @@ trace_plot <- mcmc_trace(stan_fit_null_01$draws(), pars = "scaled_log_d") +
        title = "Erdos Renyi Model, Scaled")
 
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_trace.png"),
        plot = trace_plot,
        dpi = 600,
@@ -155,7 +155,7 @@ trace_plot2 <- mcmc_trace(stan_fit_null_01_unscaled$draws(),
   labs(y = "Log Degree", x = "MCMC Iterations",
        title = "Erdos Renyi Model, No Scaling")
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_trace_unscaled.png"),
        plot = trace_plot2,
        dpi = 600,
@@ -201,10 +201,6 @@ ppc_1_plot <- with(ppc_null_1, plot_ests_all(ppc_null_1$ppc_draws,
                                              ppc_null_1$y_tibble, 
                                              prop_vals =  c(0, 1, 3, 5, 10)))
 
-# (ppc_fit_null_1 <- plot_ests(ppc_null_1$ppc_draws, 
-#                              ppc_null_1$y_tibble,
-#                              prop_val = 1))
-
 rm(ppc_null_1)
 ppc_1_null_1 <- ppc_fit_null_1 +
   labs(title = expression("Proportion of " * y[ik] == 1),
@@ -217,49 +213,7 @@ ppc_plot_null_1 <- plot_ests_all(ppc_y = ppc_null_1$ppc_draws,
               prop_vals = c(0, 1, 3, 5, 10))
 
 
-# y_vals <- c(0, 1, 3, 5, 10)
-# ppc_fit_null_1_0 <- plot_ests(ppc_null_1$ppc_draws, 
-#                             ppc_null_1$y_tibble,
-#                             prop_val = y_vals[1]) + 
-#   labs(title = expression(y[ik] == 0),
-#        x = element_blank(), y = element_blank(),
-#        subtitle = "") + theme_single()
-# ppc_fit_null_1_1 <- plot_ests(ppc_null_1$ppc_draws, 
-#                               ppc_null_1$y_tibble,
-#                               prop_val = y_vals[2]) + 
-#   labs(title = expression(y[ik] == 1),
-#        x = element_blank(), y = element_blank(),
-#        subtitle = "") + theme_single()
-# ppc_fit_null_1_3 <- plot_ests(ppc_null_1$ppc_draws, 
-#                               ppc_null_1$y_tibble,
-#                               prop_val = y_vals[3]) + 
-#   labs(title = expression(y[ik] == 3),
-#        x = element_blank(), y = element_blank(),
-#        subtitle = "") + theme_single()
-# ppc_fit_null_1_5 <- plot_ests(ppc_null_1$ppc_draws, 
-#                               ppc_null_1$y_tibble,
-#                               prop_val = y_vals[4]) + 
-#   labs(title = expression(y[ik] == 5),
-#        x = element_blank(), y = element_blank(),
-#        subtitle = "") + theme_single()
-# ppc_fit_null_1_10 <- plot_ests(ppc_null_1$ppc_draws, 
-#                               ppc_null_1$y_tibble,
-#                               prop_val = y_vals[5]) + 
-#   labs(title = expression(y[ik] == 10),
-#        x = element_blank(), y = element_blank(),
-#        subtitle = "") + theme_single()
-# 
-# ppc_fit_null_1_10
-# 
-# grid.arrange(ppc_fit_null_1_0, 
-#              ppc_fit_null_1_1,
-#              ppc_fit_null_1_3,
-#              ppc_fit_null_1_5,
-#              # ppc_fit_null_1_10,
-#              nrow = 1)
-
-
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_ppc_1.png"),
        plot = ppc_plot_null_1$final_plot,
        dpi = 600,
@@ -324,23 +278,13 @@ stan_fit_null_02$draws() |>
 
 ppc_null_2 <- construct_ppc(stan_fit_null_02, y_sim)
 
-# (ppc_fit_null_2 <- plot_ests(ppc_null_2$ppc_draws, 
-#                              ppc_null_2$y_tibble,
-#                              prop_val = 1))
-# rm(ppc_null_2)
-# ppc_1_null_2 <- ppc_fit_null_2 +
-#   labs(title = expression("Proportion of " * y[ik] == 1),
-#        subtitle = "") +
-#   theme_single()
-# 
-# ppc_1_null_2
 
 ppc_plot_null_2 <- plot_ests_all(ppc_y = ppc_null_2$ppc_draws,
                                  true_y = ppc_null_2$y_tibble,
                                  prop_vals = c(0, 1, 3, 5, 10))
 rm(ppc_null_2)
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_ppc_2.png"),
        plot = ppc_plot_null_2$final_plot,
        dpi = 600,
@@ -391,7 +335,7 @@ null_deg_plot <- bind_rows(null_1_deg,
 
 null_deg_plot
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_null_degree.png"),
        plot = null_deg_plot,
        dpi = 600,
@@ -432,54 +376,16 @@ est_degrees_2006 <- stan_fit_zheng$draws() |>
   mutate(node = parse_number(node)) |>
   mutate(est_degree = exp(log_estimate))
 
-## look at posterior estimates of degree and subpop size
-# stan_fit_zheng$draws() |> 
-#   as_draws_df() |> 
-#   dplyr::select(starts_with("scaled_alpha")) |> 
-#   mutate(draw = row_number())  |> 
-#   pivot_longer(cols = starts_with("scaled_alpha"), 
-#                names_to = "par", values_to = "sample") |> 
-#   mutate(node = parse_number(par)) |> 
-#   mutate(degree = exp(sample)) |> 
-#   ggplot(aes(degree)) +
-#   geom_histogram()
-
-
-
-# stan_fit_zheng$draws() |> 
-#   as_draws_df() |> 
-#   dplyr::select(starts_with("scaled_beta[")) |>
-#   mutate(draw = row_number()) |> 
-#   pivot_longer(cols = starts_with("scaled_beta"),
-#                names_to = "par", 
-#                values_to = "sample") |> 
-#   mutate(subpop = parse_number(par),
-#          subpop_size = n_population * exp(sample)) |> 
-#   # filter(!(subpop %in% G1_ind)) |> 
-#   ggplot(aes(subpop_size)) +
-#   geom_histogram() +
-#   facet_wrap(~subpop, scales = "free", nrow = 3) +
-#   geom_vline(data = subpop_info, aes(xintercept = size), col = "red")
-
 
 
 ppc_zheng <- construct_ppc(stan_fit_zheng, y_sim)
-
-# (ppc_fit_zheng <- plot_ests(ppc_zheng$ppc_draws, 
-#                             ppc_zheng$y_tibble,
-#                             prop_val = 1))
-# 
-# ppc_plot_zheng <- ppc_fit_zheng + 
-#   labs(title = expression("Proportion of " * y[ik] == 1),
-#        subtitle = "") +
-#   theme_single()
 
 ppc_plot_zheng <- plot_ests_all(ppc_y = ppc_zheng$ppc_draws,
                                  true_y = ppc_zheng$y_tibble,
                                  prop_vals = c(0, 1, 3, 5, 10))
 
 rm(ppc_zheng)
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_ppc_zheng.png"),
        plot = ppc_plot_zheng$final_plot,
        dpi = 600,
@@ -490,7 +396,7 @@ ggsave(filename = here("Summer_2025", "figures",
 # Fit McCormick 2015 ------------------------------------------------------
 
 stan_fit_2015 <- readRDS(file = here("stan_models",
-                                      "ard_latent_2015_cluster_fit.RDS"))
+                                      "ard_latent_2015_cluster_fit_oct_30.RDS"))
 
 est_degrees_2015 <- stan_fit_2015$draws() |>
   as_draws_df() |>
@@ -523,11 +429,11 @@ ppc_2015 <- construct_ppc(stan_fit_2015, y_sim)
 ppc_plot_2015 <- plot_ests_all(ppc_y = ppc_2015$ppc_draws,
                                 true_y = ppc_2015$y_tibble,
                                 prop_vals = c(0, 1, 3, 5, 10))
-rm(ppc_2015)
+# rm(ppc_2015)
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_ppc_2015.png"),
-       plot = ppc_plot_2015,
+       plot = ppc_plot_2015$final_plot,
        dpi = 600,
        height = 5, width = 10)
 
@@ -538,14 +444,8 @@ RColorBrewer::brewer.pal(n = 4, name = "Set1")
 
 
 gg_color_hue <- function(n) { 
-  
-  
   hues = seq(15, 375, length = n + 1) 
-  
-  
   hcl(h = hues, l = 65, c = 100)[1:n]
-  
-  
 }
 
 consistent_colours <- tibble(
@@ -585,7 +485,7 @@ deg_plot <- bind_rows(est_degrees_2006 |>
 
 deg_plot
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_est_degree.png"),
        plot = deg_plot,
        dpi = 600,
@@ -662,7 +562,7 @@ subpop_plot <- subpop_data |>
   geom_vline(xintercept = true_subpops[15], col = "red", linetype = 2)
 subpop_plot
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_subpop_est.png"),
        plot = subpop_plot,
        dpi = 600,
@@ -717,15 +617,13 @@ subpops_plot <- stan_fit_2015$draws() |>
         legend.position = "none")
 
 subpops_plot
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_subpop_all.png"),
        plot = subpops_plot,
        dpi = 600,
        height = 5, width = 5)
   
 ## then arrange these by largest, add little red lines for true values, etc
-
-
 
 # Degree Distribution Plot ------------------------------------------------
 
@@ -752,15 +650,15 @@ hist_input <- data.frame(degree = exp(sim_data$true_alpha))
 bin_data <- ggplot(hist_input, aes(x = degree)) +
   geom_histogram(bins = 50)
 
-hist_data <- ggplot_build(bin_data)$data[[1]] %>%
-  as_tibble() %>%
+hist_data <- ggplot_build(bin_data)$data[[1]] |>
+  as_tibble() |>
   mutate(scaled_count = count / max(count)) 
 
-deg_hist_all <- degs_all %>% 
+deg_hist_all <- degs_all |> 
   mutate( model = factor( model_abbr,
                           levels = c("latent","overd","deg","er"),
-                          labels = modelnames )) %>%
-  filter( model_abbr != "er" ) %>%
+                          labels = modelnames )) |>
+  filter( model_abbr != "er" ) |>
   ggplot(aes(degree, col = model)) + 
   # geom_histogram( data = data.frame(degree = exp(sim_data$true_alpha)),
   #                 aes(degree, y = after_stat(density)),
@@ -800,7 +698,7 @@ deg_hist_all <- degs_all %>%
 final_deg_plot <- deg_hist_all + theme(axis.text.y = element_blank(),
                      axis.ticks.y = element_blank(), legend.title = element_blank()) 
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "lat_all_deg_plot.png"),
        plot = deg_hist_all,
        dpi = 600,
@@ -823,18 +721,18 @@ size_ests_plot_data_lat <- mcmc_intervals_data(stan_fit_2015$draws("scaled_beta"
   mutate(parameter = c(rep("Known", 14), "Unknown")) |> 
   mutate(ll = exp(ll), l = exp(l), m = exp(m), h = exp(h), hh = exp(hh))
 
-size_ests_plotdata_all <- size_ests_plot_data_lat %>% 
-  mutate( model = "Latent Space") %>%
-  bind_rows( size_ests_plot_data_er %>% mutate( model = "Erdos Renyi" ),
-             size_ests_plot_data_vd %>% mutate( model = "Varying Degree"),
-             size_ests_plot_data_od %>% mutate( model = "Overdispersed") ) %>%
+size_ests_plotdata_all <- size_ests_plot_data_lat |> 
+  mutate( model = "Latent Space") |>
+  bind_rows( size_ests_plot_data_er |> mutate( model = "Erdos Renyi" ),
+             size_ests_plot_data_vd |> mutate( model = "Varying Degree"),
+             size_ests_plot_data_od |> mutate( model = "Overdispersed") ) |>
   mutate( model = factor( model, levels = modelnames ) )
 
 size_true <- tibble(parameter = c(rep("Known", 14), "Unknown"),
                     true = true_subpops)
 
-size_ests_all_plot <- size_ests_plotdata_all %>% 
-  filter(parameter=="Unknown") %>%
+size_ests_all_plot <- size_ests_plotdata_all |> 
+  filter(parameter=="Unknown") |>
   ggplot() +
   geom_segment( aes(x=ll * n_population, xend=hh * n_population,y=model,yend=model),
                 linewidth = .5 ) +
@@ -842,8 +740,8 @@ size_ests_all_plot <- size_ests_plotdata_all %>%
                 linewidth = 2 ) +
   geom_point( aes( x = m * n_population, y = model,
                    col=model), size = 3.5 ) +
-  geom_vline(xintercept = size_true %>% 
-               filter(parameter=="Unknown") %>% 
+  geom_vline(xintercept = size_true |> 
+               filter(parameter=="Unknown") |> 
                pull(true), lty=2) +
   #scale_y_discrete()
   bayesplot_theme_get() + theme(legend.position = "bottom") +
@@ -852,7 +750,7 @@ size_ests_all_plot <- size_ests_plotdata_all %>%
 
 size_ests_all_plot <- size_ests_all_plot + theme_classic() 
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "size_ests_all_plot.png"),
        plot = size_ests_all_plot,
        dpi = 600,
@@ -894,7 +792,7 @@ ppc_all_plot <- ppc_all_plotdata |>
 
 ppc_all_plot
 
-ggsave(filename = here("Summer_2025", "figures",
+ggsave(filename = here("Summer_2025", "revision_figures",
                        "latent_all_ppc.png"),
        plot = ppc_all_plot,
        dpi = 600,

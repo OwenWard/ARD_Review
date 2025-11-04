@@ -18,7 +18,9 @@ stan_data <- list(N = data$n_sample,
                   n_known = length(data$known_pops),
                   idx = data$known_pops,
                   p = 3,
-                  known_prev = sum(data$true_subpops[data$G1_ind]/data$n_population))
+                  known_prev = sum(data$true_subpops[data$G1_ind]/data$n_population),
+                  xi = xi, 
+                  eta = eta_vec)
 
 stan_file_2015 <- here("stan_models", "mc_cormick_and_zheng_2015.stan")
 mod_2015 <- cmdstan_model(stan_file = stan_file_2015)
@@ -32,7 +34,7 @@ stan_fit_2015 <- mod_2015$sample(data = stan_data,
                                  refresh = 100)
 
 stan_fit_2015$save_object(file = here("stan_models",
-                                      "ard_latent_2015_cluster_fit_new.RDS"))
+                                      "ard_latent_2015_cluster_fit_checking.RDS"))
 
 # 
 # fit <- readRDS(here("stan_models", "2015_cluster_fit.RDS"))

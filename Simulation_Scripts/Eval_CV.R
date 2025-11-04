@@ -5,11 +5,11 @@ library(loo)
 
 
 
-null_01_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
+null_01_log_lik <- readRDS(file = here("Simulation_Scripts", "log_lik",
                                        "latent_null_01_log_lik.RDS"))
-null_02_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
+null_02_log_lik <- readRDS(file = here("Simulation_Scripts", "log_lik",
                                        "latent_null_02_log_lik.RDS"))
-zheng_06_log_lik <- readRDS(file = here("Summer_2025", "log_lik",
+zheng_06_log_lik <- readRDS(file = here("Simulation_Scripts", "log_lik",
                                         "latent_zheng_06_log_lik.RDS"))
 
 

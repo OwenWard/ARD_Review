@@ -17,7 +17,7 @@ jobid <- as.numeric(jobid)
 fold_id <- jobid
 
 
-data <- readRDS(here("Summer_2025", "ard_latent_mod.RDS"))
+data <- readRDS(here("Summer_2025", "ard_latent_mod_new.RDS"))
 stan_data <- list(N = data$n_sample, 
                   K = data$n_subpop,
                   y = data$y_sim,
