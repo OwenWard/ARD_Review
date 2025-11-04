@@ -42,12 +42,17 @@ data {
   int<lower=0, upper=K> n_known;
   array[n_known] int<lower=1, upper=K> idx;
   real<lower=0, upper=1> known_prev;
+  // vector<lower=0>[K] eta;
+  // real<lower=0> xi;
+  // array[N] unit_vector[p] z;
+  // array[K] unit_vector[p] nu;
+  // vector[K] beta;
 }
 
 
 parameters {
-  real mu_alpha;
-  real mu_beta;
+  // real mu_alpha;
+  // real mu_beta;
   real<lower=0> sigma_alpha;
   real<lower=0> sigma_beta;
   vector[N] alpha;
@@ -60,6 +65,14 @@ parameters {
 
 
 transformed parameters {
+  // array[K] unit_vector[p] nu;
+  // // Fixed poles
+  // nu[1] = [0, 0, 1]';   // north pole
+  // nu[2] = [0, 0, -1]';  // south pole
+  // 
+  // // Fill in the rest
+  // for (i in 3:K)
+  //   nu[i] = nu_free[i - 2];
   vector[K] scaled_beta;
   vector[N] scaled_alpha;
   real C;
@@ -91,19 +104,19 @@ transformed parameters {
 // The model to be estimated..
 model {
 profile("priors") {
-  xi ~ gamma(2, 1);
-  eta ~ gamma(2, 1);
+  xi ~ gamma(0.5, 0.5);
+  eta ~ gamma(5, 0.1);
   sigma_beta ~ normal(0, 5);
   sigma_alpha ~ normal(0, 5);
-  alpha ~ normal(mu_alpha, sigma_alpha);
-  beta ~ normal(mu_beta, sigma_beta); 
+  alpha ~ normal(0, sigma_alpha);
+  beta ~ normal(0, sigma_beta);
 }
 profile("likelihood"){
 
   for(n in 1:N){
     for(k in 1:K){
       real den_term = sqrt(xi ^2 +  eta[k]^2 + 2 * xi * eta[k] *
-                            theta[n, k]);
+                            dclip[n, k]);
       // real den_term = 1;
       real log_num = num_part1 + num_const_eta[k];//log_vmf_norm(p, eta[k]);
       real log_den = den_part1 + log_vmf_norm(p, den_term);
@@ -125,7 +138,7 @@ generated quantities {
   for (n in 1:N) {
     for (k in 1:K) {
       real den_term = sqrt(xi ^2 +  eta[k]^2 + 2 * xi * eta[k] *
-                            theta[n, k]);
+                            dclip[n, k]);
       real log_num = num_part1 + num_const_eta[k];//log_vmf_norm(p, eta[k]);
       real log_den = den_part1 + log_vmf_norm(p, den_term);
       real gamma_ik = exp(log_num - log_den);

@@ -38,7 +38,11 @@ model {
   beta ~ normal(0, 5); 
   real exp_log_d = exp(scaled_log_d);
   for (n in 1:N) {
-    y[n] ~ poisson(exp_log_d .* b);
+    for(k in 1:K){
+      if(y[n, k] >= 0) {
+        y[n, k] ~ poisson(exp_log_d * b[k]);
+      }
+    }
   }
 }
 
@@ -52,9 +56,12 @@ generated quantities {
   array[N, K] real log_lik;
   real curr_log_d = scaled_log_d;
   for (n in 1:N) {
-    y_sim[n] = poisson_log_rng(curr_log_d + scaled_beta);
+    for(k in 1:K){
+      y_sim[n, k] = poisson_log_rng(curr_log_d + scaled_beta[k]);
+      if(y[n, k] >= 0) {
+       log_lik[n, k] = poisson_log_lpmf(y[n, k] | curr_log_d + scaled_beta[k]); 
+      }
+    }
     y_sum[n] = sum( y_sim[n] );
-    log_lik[n] = poisson_log_lpmf(y[n] | curr_log_d + scaled_beta);
   }
-
 }
